@@ -42,6 +42,7 @@ int main(int argc, char *argv[]) {
                                     "\ta - b...............Dif. between a and b\n" <<
                                     "\ta * b...............Mul. a by b\n" <<
                                     "\ta / b...............Div. a by b\n" <<
+                                    "\ta % b...............Rem. of div. of a by b\n" <<
                                     "\ta ^ b...............Raise a to power of b\n" <<
                                     "\ta = b...............Returns true if a is equal to b, false if a is not equal to b\n" <<
                                     "\ta != b..............Returns true if a is not equal to b, false if a is equal to b (can be written as a # b)" << std::endl <<
@@ -54,6 +55,7 @@ int main(int argc, char *argv[]) {
                                     "\tctg(a)..............ctg(a) (can bewritten as cot(a))\n" <<
                                     "\tln(a)...............log_e(a)\n" <<
                                     "\tlog2(a).............log_2(a)" << std::endl <<
+                                    "\tsum(a, b, c)........sum of all numbers from a to b with step c" << std::endl <<
                                     "Constants:\n" <<
                                     "\tPI..................3.141592653589793\n" <<
                                     "\tE...................2.718281828459045" << std::endl;
