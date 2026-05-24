@@ -5,12 +5,13 @@ enum class TokenType {
             NUMBER, COMMA,
             PLUS,MINUS,
             EQUAL, NOTEQUAL,
-            STAR,SLASH,
+            STAR,SLASH,MOD,
             POW, SQRT, ROOT,
             LPAREN,RPAREN,
             LOG2,LOGTEN,LOGE,
             SIN,TAN,COS,CTAN,
             CONST_E, CONST_PI,
+            FACTORIAL, SUM,
             IDENTIFIER,
             END
 };

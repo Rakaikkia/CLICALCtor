@@ -37,6 +37,10 @@ public:
                         else if (op == '-') return l - r;
                         else if (op == '*') return l * r;
                         else if (op == '^') return std::pow(l, r);
+                        else if (op == '%') {
+                                    if (r == 0.0) throw std::runtime_error("Modulo by zero");
+                                    return std::fmod(l, r);
+                        }
                         else if (op == '/') {
                                     if (r == 0.0) throw std::runtime_error ("Division by zero");
                                     return l / r;
@@ -62,6 +66,25 @@ public:
             double evaluate() const override {return - (operand->evaluate());}
 };
 
+class FactorialNode: public ASTNode {
+public:
+            std::unique_ptr<ASTNode> operand;
+            explicit FactorialNode(std::unique_ptr<ASTNode> op): operand(std::move(op)) {};
+
+            double evaluate() const override {
+                        double val = operand->evaluate();
+                        if (val < 0 || std::fabs(val - std::round(val)) > 1e-12) {
+                                    throw std::runtime_error("Factorial of non-integer or negative number");
+                        }
+                        int n = static_cast<int>(std::round(val));
+                        double result = 1.0;
+                        for (int i = 2; i < n + 1; ++i) {
+                                    result *=i;
+                        }
+                        return result;
+            }
+};
+
 class ConstantNode: public ASTNode {
 public:
             std::string name;
@@ -71,6 +94,44 @@ public:
                         if (name == "E") return 2.718281828459045;
                         throw std::runtime_error("Unknown constant");
             }
+};
+
+class SumNode : public ASTNode {
+public:
+            std::unique_ptr<ASTNode> start;
+            std::unique_ptr<ASTNode> end;
+            std::unique_ptr<ASTNode> step;
+            bool debugMode;
+
+            SumNode(std::unique_ptr<ASTNode> s, std::unique_ptr<ASTNode> e, std::unique_ptr<ASTNode> st, bool debug)
+                        : start(std::move(s)), end(std::move(e)), step(std::move(st)), debugMode(debug) {}
+
+            double evaluate() const override {
+                        double a = start->evaluate();
+                        double b = end->evaluate();
+                        double h = step->evaluate();
+
+                        if (h == 0.0) throw std::runtime_error("sum step cannot be zero");
+
+                        const double eps = 1e-12;
+
+                        double raw_n = (b - a) / h;
+                        long long n = static_cast<long long>(std::floor(raw_n + eps)) + 1;
+
+                        double last = a + (n - 1) * h;
+
+                        if ((h > 0 && last > b + eps) || (h < 0 && last < b - eps)) {
+                                    n = (h > 0) ? std::max(1LL, static_cast<long long>((b - a) / h + eps)) + 1 : 1LL;
+                                    last = a + (n - 1) * h;
+                        }
+
+                        if (debugMode) {
+                                    std::cout << "[SUM] count = " << n << ", first = " << a << ", last = " << last << std::endl;
+                        }
+
+                        double sum = n * (a + last) / 2.0;
+                        return sum;
+}
 };
 
 class FunctionCallNode: public ASTNode {

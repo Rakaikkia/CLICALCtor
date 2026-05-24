@@ -58,6 +58,7 @@ Token Lexer::readIdentifier() {
                         {"tg", TokenType::TAN},
                         {"cot", TokenType::CTAN},
                         {"ctg", TokenType::CTAN},
+                        {"sum", TokenType::SUM},
                         {"sqrt", TokenType::SQRT},
                         {"root", TokenType::ROOT},
                         {"PI", TokenType::CONST_PI},
@@ -82,6 +83,10 @@ Token Lexer::getNextToken() {
                         return Token(TokenType::NOTEQUAL, index - 2);
             }
 
+            if (input[index] == '!') {
+                        ++index;
+                        return Token(TokenType::FACTORIAL, index - 1);
+            }
 
             char ch = input[index];
             if (std::isalpha(static_cast<unsigned char>(ch))) {return readIdentifier();}
@@ -98,6 +103,7 @@ Token Lexer::getNextToken() {
                         {',', TokenType::COMMA},
                         {'=', TokenType::EQUAL},
                         {'#', TokenType::NOTEQUAL},
+                        {'%', TokenType::MOD},
             };
             auto it = opMap.find(ch);
             if (it != opMap.end()) {

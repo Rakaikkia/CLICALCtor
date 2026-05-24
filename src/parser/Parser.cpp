@@ -40,6 +40,14 @@ std::unique_ptr<ASTNode> Parser::parseFunctionCall(TokenType /*funcToken*/, cons
                         consume(TokenType::RPAREN, "Expected ')' after function name");
                         auto inv = std::make_unique<BinaryOpNode>(std::make_unique<NumberNode>(1.0), std::move(right), '/');
                         return std::make_unique<BinaryOpNode>(std::move(left), std::move(inv), '^');
+            } else if (funcName == "sum") {
+                        auto startExpr = parseAddSub();
+                        consume(TokenType::COMMA, "Expected ',' after start in sum()");
+                        auto endExpr = parseAddSub();
+                        consume(TokenType::COMMA, "Expected ',' after end in sum()");
+                        auto stepExpr = parseAddSub();
+                        consume(TokenType::RPAREN, "Expected ')' after sum arguments");
+                        return std::make_unique<SumNode>(std::move(startExpr), std::move(endExpr), std::move(stepExpr), debugMode);
             } else {
                         auto arg = parseAddSub();
                         consume(TokenType::RPAREN, "Expected ')' after function name");
@@ -82,6 +90,7 @@ std::unique_ptr<ASTNode> Parser::parsePrimary(bool radiansMode) {
                                     CTT == TokenType::SIN ||
                                     CTT == TokenType::COS ||
                                     CTT == TokenType::TAN ||
+                                    CTT == TokenType::SUM ||
                                     CTT == TokenType::ROOT ||
                                     CTT == TokenType::SQRT ||
                                     CTT == TokenType::CTAN) {
@@ -96,6 +105,7 @@ std::unique_ptr<ASTNode> Parser::parsePrimary(bool radiansMode) {
                                     case TokenType::CTAN: funcName = "ctg"; break;
                                     case TokenType::SQRT: funcName = "sqrt"; break;
                                     case TokenType::ROOT: funcName = "root"; break;
+                                    case TokenType::SUM: funcName = "sum"; break;
                                     default: break;
                         }
                         advance();
@@ -106,6 +116,11 @@ std::unique_ptr<ASTNode> Parser::parsePrimary(bool radiansMode) {
                         consume(TokenType::RPAREN, "Expected )");
             } else {
                         throw std::runtime_error("Expected number or ( at position " + std::to_string(currentToken.position));
+            }
+
+            if (currentToken.type == TokenType::FACTORIAL) {
+                        advance();
+                        node = std::make_unique<FactorialNode>(std::move(node));
             }
 
             while (currentToken.type == TokenType::NUMBER || currentToken.type == TokenType::LPAREN) {
@@ -166,11 +181,13 @@ std::unique_ptr<ASTNode> Parser::parsePows() {
 std::unique_ptr<ASTNode> Parser::parseMulDiv() {
             if (debugMode) std::cout << "[Parser] parseMulDiv" << std::endl;
             std::unique_ptr<ASTNode> left = parsePows();
-            while (currentToken.type == TokenType::STAR || currentToken.type == TokenType::SLASH) {
-                        char op = (currentToken.type == TokenType::STAR) ? '*' : '/';
+            while (currentToken.type == TokenType::STAR || currentToken.type == TokenType::SLASH || currentToken.type == TokenType::MOD) {
+                        char op;
+                        if (currentToken.type == TokenType::STAR) op = '*';
+                        else if (currentToken.type == TokenType::SLASH) op = '/';
+                        else op = '%';
                         advance();
                         auto right = parsePows();
-                        if (debugMode) std::cout << "[Parser] MulDiv op: " << op << std::endl;
                         left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), op);
             }
             return left;
