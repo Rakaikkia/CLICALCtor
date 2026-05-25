@@ -1,1648 +1,0 @@
-=== ./src/lexer/Token.h ===
-#pragma once
-#include <cstddef>
-
-enum class TokenType {
-            NUMBER, COMMA,
-            PLUS,MINUS,
-            EQUAL, NOTEQUAL,
-            STAR,SLASH,
-            POW, SQRT, ROOT,
-            LPAREN,RPAREN,
-            LOG2,LOGTEN,LOGE,
-            SIN,TAN,COS,CTAN,
-            CONST_E, CONST_PI,
-            FACTORIAL, SUM,
-            IDENTIFIER,
-            END
-};
-
-class Token {
-public:
-            TokenType type;
-            double value;
-            size_t position;
-
-            Token() : type(TokenType::END), value(0.0), position(0) {}
-            Token(double val, size_t pos)
-                        :type(TokenType::NUMBER), value(val), position(pos) {}
-            Token(TokenType t, size_t pos)
-                        :type(t), value(0.0), position(pos) {}
-};
-
-=== ./src/lexer/Lexer.h ===
-#pragma once
-#include "Token.h"
-#include <cstddef>
-#include <string>
-
-class Lexer {
-private:
-            std::string input;
-            size_t index;
-            bool debugMode;
-
-            void skipWhitespace();
-            Token readNumber();
-            Token readIdentifier();
-            char peek() const;
-public:
-            Lexer(const std::string& str, bool debug = false);
-            Token getNextToken();
-};
-
-=== ./src/lexer/Lexer.cpp ===
-#include "Lexer.h"
-#include "Token.h"
-#include <cctype>
-#include <cstddef>
-#include <stdexcept>
-#include <string>
-#include <unordered_map>
-#include <iostream>
-
-Lexer::Lexer(const std::string& str, bool debug): input(str), index(0), debugMode(debug) {}
-
-void Lexer::skipWhitespace() {while (index < input.size() && std::isspace(static_cast<unsigned char>(input[index]))) {++index;}}
-
-Token Lexer::readNumber() {
-            size_t start = index;
-            while (index < input.size() && std::isdigit(static_cast<unsigned char>(input[index]))) ++index;
-            if (index < input.size() && input[index] == '.') {
-                        ++index;
-                        while (index < input.size() && std::isdigit(static_cast<unsigned char>(input[index]))) ++index;
-            }
-            if (index < input.size() && (input[index] == 'e')) {
-                        ++index;
-                        if (index < input.size() && (input[index] == '+' || input[index] == '-')) ++index;
-                        bool hasDigits = false;
-                        while (index < input.size() && std::isdigit(static_cast<unsigned char>(input[index]))) {
-                                    hasDigits = true;
-                                    ++index;
-                        }
-                        if (!hasDigits) throw std::runtime_error("Invalid number exponent at position " + std::to_string(start));
-            }
-
-            std::string numStr = input.substr(start, index - start);
-            if (debugMode) {
-                        std::cout << "[Lexer] Number: " << numStr << " at position " << start << std::endl;
-            }
-            try {
-                        double value = std::stod(numStr);
-                        return Token(value, start);
-            } catch (const std::exception&) {
-                        throw std::runtime_error("Invalid number '" + numStr + "' at position " + std::to_string(start));
-            }
-}
-
-
-Token Lexer::readIdentifier() {
-            size_t start = index;
-            while (index < input.size() && std::isalnum(static_cast<unsigned char>(input[index]))) {++index;}
-            std::string name = input.substr(start, index - start);
-
-            if (debugMode) {std::cout << "[Lexer] Identifier: " << name << " at position " << start << std::endl;}
-            static const std::unordered_map<std::string, TokenType> opMap = {
-                        {"ln", TokenType::LOGTEN},
-                        {"logtwo", TokenType::LOG2},
-                        {"loge", TokenType::LOGE},
-                        {"sin", TokenType::SIN},
-                        {"cos", TokenType::COS},
-                        {"tan", TokenType::TAN},
-                        {"tg", TokenType::TAN},
-                        {"cot", TokenType::CTAN},
-                        {"ctg", TokenType::CTAN},
-                        {"sum", TokenType::SUM},
-                        {"sqrt", TokenType::SQRT},
-                        {"root", TokenType::ROOT},
-                        {"PI", TokenType::CONST_PI},
-                        {"E", TokenType::CONST_E},
-            };
-            auto it = opMap.find(name);
-            if (debugMode) {
-                        std::cout << "[Lexer] Identifier: " << name << " at position " << start << std::endl;
-            }
-            if (it != opMap.end()) {
-                        return Token(it->second, start);
-            }
-            throw std::runtime_error("Unexpected identifier " + name + " at position " + std::to_string(index));
-}
-
-Token Lexer::getNextToken() {
-            skipWhitespace();
-            if (index >= input.size()) return Token(TokenType::END, index);
-
-            if (index + 1 < input.size() && input[index] == '!' && input[index+1] == '=') {
-                        index += 2;
-                        return Token(TokenType::NOTEQUAL, index - 2);
-            }
-
-            if (input[index] == '!') {
-                        ++index;
-                        return Token(TokenType::FACTORIAL, index - 1);
-            }
-
-            char ch = input[index];
-            if (std::isalpha(static_cast<unsigned char>(ch))) {return readIdentifier();}
-            if (std::isdigit(static_cast<unsigned char>(ch))) {return readNumber();}
-
-            static const std::unordered_map<char, TokenType> opMap = {
-                        {'+', TokenType::PLUS},
-                        {'-', TokenType::MINUS},
-                        {'*', TokenType::STAR},
-                        {'^', TokenType::POW},
-                        {'/', TokenType::SLASH},
-                        {'(', TokenType::LPAREN},
-                        {')', TokenType::RPAREN},
-                        {',', TokenType::COMMA},
-                        {'=', TokenType::EQUAL},
-                        {'#', TokenType::NOTEQUAL},
-            };
-            auto it = opMap.find(ch);
-            if (it != opMap.end()) {
-                        ++index;
-                        if (debugMode) {
-                                    std::cout << "[Lexer] Operator: " << ch << " at position " << (index - 1) << std::endl;
-                        }
-                        return Token(it->second, index - 1);
-            }
-            throw std::runtime_error("Unexpected character at position " + std::to_string(index));
-}
-
-=== ./src/ast/ASTNode.h ===
-#pragma once
-#include <algorithm>
-#include <cmath>
-#include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <utility>
-
-class ASTNode {
-public:
-            virtual ~ASTNode() = default;
-            virtual double evaluate() const = 0;
-};
-
-class NumberNode: public ASTNode {
-public:
-            double value;
-            explicit NumberNode(double val): value(val) {}
-            double evaluate() const override {return value;}
-};
-
-class BinaryOpNode: public ASTNode {
-public:
-            std::unique_ptr<ASTNode> left;
-            std::unique_ptr<ASTNode> right;
-            char op;
-
-            BinaryOpNode(std::unique_ptr<ASTNode> lhs, std::unique_ptr<ASTNode> rhs, char oper)
-                        :left(std::move(lhs)), right(std::move(rhs)), op(oper) {};
-
-            double evaluate() const override {
-                        double l = left->evaluate();
-                        double r = right->evaluate();
-
-                        if (op == '+') return l + r;
-                        else if (op == '-') return l - r;
-                        else if (op == '*') return l * r;
-                        else if (op == '^') return std::pow(l, r);
-                        else if (op == '/') {
-                                    if (r == 0.0) throw std::runtime_error ("Division by zero");
-                                    return l / r;
-                        }
-                        else if (op == '=') {
-                                    double eps = 1e-9;
-                                    return (std::fabs(l - r) <= eps) ? 1.0 : 0.0;
-                        }
-                        else if (op == '#') {
-                                    double eps = 1e-9;
-                                    return (std::fabs(l - r) > eps) ? 1.0 : 0.0;
-                        }
-
-
-                        else throw std::runtime_error("Unknown operand in BinaryOpNode");
-            }
-};
-
-class UnaryMinusNode: public ASTNode {
-public:
-            std::unique_ptr<ASTNode> operand;
-            explicit UnaryMinusNode(std::unique_ptr<ASTNode> op): operand(std::move(op)) {};
-            double evaluate() const override {return - (operand->evaluate());}
-};
-
-class FactorialNode: public ASTNode {
-public:
-            std::unique_ptr<ASTNode> operand;
-            explicit FactorialNode(std::unique_ptr<ASTNode> op): operand(std::move(op)) {};
-
-            double evaluate() const override {
-                        double val = operand->evaluate();
-                        if (val < 0 || std::fabs(val - std::round(val)) > 1e-12) {
-                                    throw std::runtime_error("Factorial of non-integer or negative number");
-                        }
-                        int n = static_cast<int>(std::round(val));
-                        double result = 1.0;
-                        for (int i = 2; i < n + 1; ++i) {
-                                    result *=i;
-                        }
-                        return result;
-            }
-};
-
-class ConstantNode: public ASTNode {
-public:
-            std::string name;
-            ConstantNode(const std::string& n): name(n) {}
-            double evaluate() const override {
-                        if (name == "PI") return 3.141592653589793;
-                        if (name == "E") return 2.718281828459045;
-                        throw std::runtime_error("Unknown constant");
-            }
-};
-
-class SumNode : public ASTNode {
-public:
-            std::unique_ptr<ASTNode> start;
-            std::unique_ptr<ASTNode> end;
-            std::unique_ptr<ASTNode> step;
-            bool debugMode;
-
-            SumNode(std::unique_ptr<ASTNode> s, std::unique_ptr<ASTNode> e, std::unique_ptr<ASTNode> st, bool debug)
-                        : start(std::move(s)), end(std::move(e)), step(std::move(st)), debugMode(debug) {}
-
-            double evaluate() const override {
-                        double a = start->evaluate();
-                        double b = end->evaluate();
-                        double h = step->evaluate();
-
-                        if (h == 0.0) throw std::runtime_error("sum step cannot be zero");
-
-                        const double eps = 1e-12;
-
-                        double raw_n = (b - a) / h;
-                        long long n = static_cast<long long>(std::floor(raw_n + eps)) + 1;
-
-                        double last = a + (n - 1) * h;
-
-                        if ((h > 0 && last > b + eps) || (h < 0 && last < b - eps)) {
-                                    n = (h > 0) ? std::max(1LL, static_cast<long long>((b - a) / h + eps)) + 1 : 1LL;
-                                    last = a + (n - 1) * h;
-                        }
-
-                        if (debugMode) {
-                                    std::cout << "[SUM] count = " << n << ", first = " << a << ", last = " << last << std::endl;
-                        }
-
-                        double sum = n * (a + last) / 2.0;
-                        return sum;
-}
-};
-
-class FunctionCallNode: public ASTNode {
-public:
-            std::string funcName;
-            std::unique_ptr<ASTNode> argument;
-            bool radiansMode;
-            bool debugMode;
-            FunctionCallNode(const std::string& name, std::unique_ptr<ASTNode> arg, bool rad, bool debug)
-                        :funcName(name), argument(std::move(arg)), radiansMode(rad), debugMode(debug) {}
-            double evaluate() const override {
-                        double arg = argument->evaluate();
-                        if (debugMode) {
-                                    std::cout << "[AST] Function " << funcName << " argument = " << arg << std::endl;
-                        }
-                        if (!radiansMode && (funcName == "sin" ||
-                                                            funcName == "cos" ||
-                                                            funcName == "tan" ||
-                                                            funcName == "ctg")) {
-                                    arg = arg * 3.141592653589793 / 180.0;
-                        }
-
-                        if (funcName == "ln") return std::log10(arg);
-                        if (funcName == "loge") return std::log(arg);
-                        if (funcName == "logtwo") return std::log2(arg);
-                        if (funcName == "sin") return std::sin(arg);
-                        if (funcName == "cos") return std::cos(arg);
-                        if (funcName == "tan") return std::tan(arg);
-                        if (funcName == "ctg") {
-                                    double s = std::sin(arg);
-                                    if (s == 0.0) throw std::runtime_error("Division by zero in cotangent");
-                                    return std::cos(arg) / s;}
-                        if (funcName == "sqrt") {
-                                    if (arg < 0.0) throw std::runtime_error("sqrt of negative number");
-                                    return std::sqrt(arg);
-                        }
-                        if (funcName == "root") return std::sqrt(arg);
-
-                        throw std::runtime_error("Cant find function " + funcName);
-            }
-};
-
-=== ./src/parser/Parser.h ===
-#pragma once
-
-#include "../lexer/Lexer.h"
-#include "../ast/ASTNode.h"
-#include <memory>
-#include <stdexcept>
-
-class Parser {
-public:
-            Parser(const std::string& expr, bool radiansMode = false, bool debugMode = false);
-            std::unique_ptr<ASTNode> parseExpression();
-private:
-            Lexer lexer;
-            Token currentToken;
-            bool radiansMode;
-            bool debugMode;
-            void advance();
-            void consume(TokenType expected, const std::string& errorMsg);
-            std::unique_ptr<ASTNode> parseFunctionCall(TokenType funcToken, const std::string& funcName, bool radiansMode, bool debugMode);
-            std::unique_ptr<NumberNode> parseNumber();
-            std::unique_ptr<ASTNode> parseAddSub();
-            std::unique_ptr<ASTNode> parseMulDiv();
-            std::unique_ptr<ASTNode> parsePows();
-            std::unique_ptr<ASTNode> parsePrimary(bool radiansMode);
-            std::unique_ptr<ASTNode> parseEquality();
-};
-
-=== ./src/parser/Parser.cpp ===
-#include "Parser.h"
-#include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <string>
-
-Parser::Parser(const std::string& expr, bool radians, bool debug): lexer(expr, debug), currentToken(), radiansMode(radians), debugMode(debug) {advance();}
-
-void Parser::advance() {
-            if (debugMode) {
-                        std::cout << "[Parser] Advance: current token type=" << static_cast<int>(currentToken.type)
-                                    << " value=" << currentToken.value << " pos=" << currentToken.position << std::endl;
-            }
-            currentToken = lexer.getNextToken();
-            if (debugMode) {
-                        std::cout << "[Parser] New token: type=" << static_cast<int>(currentToken.type)
-                                    << " value=" << currentToken.value << " pos=" << currentToken.position << std::endl;
-            }
-}
-
-void Parser::consume(TokenType expected, const std::string& errorMsg) {
-            if (debugMode) {
-                        std::cout << "[Parser] Consume: expecting " << static_cast<int>(expected)
-                                    << ", got " << static_cast<int>(currentToken.type) << std::endl;
-            }
-            if (currentToken.type != expected) {throw std::runtime_error(errorMsg + " at position " + std::to_string(currentToken.position));}
-            advance();
-}
-
-std::unique_ptr<ASTNode> Parser::parseFunctionCall(TokenType /*funcToken*/, const std::string& funcName, bool radiansMode, bool debugMode) {
-            if (debugMode) std::cout << "[Parser] Function call: " << funcName << std::endl;
-            consume(TokenType::LPAREN, "Expected '(' after function name");
-            if (funcName == "root") {
-                        auto left = parseAddSub();
-                        if (currentToken.type != TokenType::COMMA) {
-                                    throw std::runtime_error("Expected ',' in root() at position " + std::to_string(currentToken.position));
-                        }
-                        advance();
-                        auto right = parseAddSub();
-                        consume(TokenType::RPAREN, "Expected ')' after function name");
-                        auto inv = std::make_unique<BinaryOpNode>(std::make_unique<NumberNode>(1.0), std::move(right), '/');
-                        return std::make_unique<BinaryOpNode>(std::move(left), std::move(inv), '^');
-            } else if (funcName == "sum") {
-                        auto startExpr = parseAddSub();
-                        consume(TokenType::COMMA, "Expected ',' after start in sum()");
-                        auto endExpr = parseAddSub();
-                        consume(TokenType::COMMA, "Expected ',' after end in sum()");
-                        auto stepExpr = parseAddSub();
-                        consume(TokenType::RPAREN, "Expected ')' after sum arguments");
-                        return std::make_unique<SumNode>(std::move(startExpr), std::move(endExpr), std::move(stepExpr), debugMode);
-            } else {
-                        auto arg = parseAddSub();
-                        consume(TokenType::RPAREN, "Expected ')' after function name");
-                        return std::make_unique<FunctionCallNode>(funcName, std::move(arg), radiansMode, debugMode);
-            }
-}
-
-
-std::unique_ptr<NumberNode> Parser::parseNumber() {
-            if (currentToken.type != TokenType::NUMBER) {throw std::runtime_error("Expected NUMBER at position " + std::to_string(currentToken.position));}
-            double val = currentToken.value;
-            advance();
-            return std::make_unique<NumberNode>(val);
-}
-
-std::unique_ptr<ASTNode> Parser::parsePrimary(bool radiansMode) {
-            if (debugMode) std::cout << "[Parser] parsePrimary" << std::endl;
-            if (currentToken.type == TokenType::PLUS) {
-                        advance();
-                        return parsePrimary(radiansMode);
-            }
-            if (currentToken.type == TokenType::MINUS) {
-                        advance();
-                        auto operand = parsePrimary(radiansMode);
-                        return std::make_unique<UnaryMinusNode>(std::move(operand));
-            }
-
-
-            std::unique_ptr<ASTNode> node;
-            auto CTT = currentToken.type;
-            if (CTT == TokenType::NUMBER) {
-                        node = parseNumber();
-            } else if (CTT == TokenType::CONST_PI || CTT == TokenType::CONST_E) {
-                        std::string name = (currentToken.type == TokenType::CONST_PI) ? "PI" : "E";
-                        advance();
-                        node = std::make_unique<ConstantNode>(name);
-            } else if (CTT == TokenType::LOGTEN ||
-                                    CTT == TokenType::LOG2 ||
-                                    CTT == TokenType::LOGE ||
-                                    CTT == TokenType::SIN ||
-                                    CTT == TokenType::COS ||
-                                    CTT == TokenType::TAN ||
-                                    CTT == TokenType::SUM ||
-                                    CTT == TokenType::ROOT ||
-                                    CTT == TokenType::SQRT ||
-                                    CTT == TokenType::CTAN) {
-                        std::string funcName;
-                        switch (CTT) {
-                                    case TokenType::LOGTEN: funcName = "ln"; break;
-                                    case TokenType::LOG2: funcName = "logtwo"; break;
-                                    case TokenType::LOGE: funcName = "loge"; break;
-                                    case TokenType::SIN: funcName = "sin"; break;
-                                    case TokenType::COS: funcName = "cos"; break;
-                                    case TokenType::TAN: funcName = "tan"; break;
-                                    case TokenType::CTAN: funcName = "ctg"; break;
-                                    case TokenType::SQRT: funcName = "sqrt"; break;
-                                    case TokenType::ROOT: funcName = "root"; break;
-                                    case TokenType::SUM: funcName = "sum"; break;
-                                    default: break;
-                        }
-                        advance();
-                        node = parseFunctionCall(currentToken.type, funcName, radiansMode, debugMode);
-            } else if (CTT == TokenType::LPAREN) {
-                        advance();
-                        node = parseAddSub();
-                        consume(TokenType::RPAREN, "Expected )");
-            } else {
-                        throw std::runtime_error("Expected number or ( at position " + std::to_string(currentToken.position));
-            }
-
-            if (currentToken.type == TokenType::FACTORIAL) {
-                        advance();
-                        node = std::make_unique<FactorialNode>(std::move(node));
-            }
-
-            while (currentToken.type == TokenType::NUMBER || currentToken.type == TokenType::LPAREN) {
-                        auto right = (currentToken.type == TokenType::NUMBER) ? parseNumber() : [&]() {
-                                    advance();
-                                    auto n = parseAddSub();
-                                    consume(TokenType::RPAREN, "Expected )");
-                                    return n;
-                        }();
-                        node = std::make_unique<BinaryOpNode>(std::move(node), std::move(right), '*');
-            }
-
-            return node;
-}
-
-
-
-std::unique_ptr<ASTNode> Parser::parseAddSub() {
-            if (debugMode) std::cout << "[Parser] parseAddSub" << std::endl;
-            auto left = parseMulDiv();
-            while (currentToken.type == TokenType::PLUS || currentToken.type == TokenType::MINUS) {
-                        char op = (currentToken.type == TokenType::PLUS) ? '+' : '-';
-                        advance();
-                        auto right = parseMulDiv();
-                        if (debugMode) std::cout << "[Parser] AddSub op: " << op << std::endl;
-                        left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), op);
-            }
-            return left;
-}
-
-std::unique_ptr<ASTNode> Parser::parseEquality() {
-            if (debugMode) std::cout << "[Parser] parseEquality" << std::endl;
-            auto left = parseAddSub();
-            while (currentToken.type == TokenType::EQUAL || currentToken.type == TokenType::NOTEQUAL) {
-                        TokenType t = currentToken.type;
-                        advance();
-                        auto right = parseAddSub();
-                        char opChar = (t == TokenType::EQUAL) ? '=' : '#';
-                        if (debugMode) std::cout << "[Parser] Equality op: " << opChar << std::endl;
-                        left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), opChar);
-            }
-            return left;
-}
-
-
-
-std::unique_ptr<ASTNode> Parser::parsePows() {
-            if (debugMode) std::cout << "[Parser] parsePows" << std::endl;
-            auto left = parsePrimary(radiansMode);
-            if (currentToken.type == TokenType::POW) {
-                        advance();
-                        auto right = parsePows();
-                        left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), '^');
-            }
-            return left;
-}
-
-std::unique_ptr<ASTNode> Parser::parseMulDiv() {
-            if (debugMode) std::cout << "[Parser] parseMulDiv" << std::endl;
-            std::unique_ptr<ASTNode> left = parsePows();
-            while (currentToken.type == TokenType::STAR || currentToken.type == TokenType::SLASH) {
-                        char op = (currentToken.type == TokenType::STAR) ? '*' : '/';
-                        advance();
-                        auto right = parsePows();
-                        if (debugMode) std::cout << "[Parser] MulDiv op: " << op << std::endl;
-                        left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), op);
-            }
-            return left;
-}
-
-
-
-std::unique_ptr<ASTNode> Parser::parseExpression() {
-            if (debugMode) std::cout << "[Parser] parseExpression" << std::endl;
-            auto node = parseEquality();
-            if (currentToken.type != TokenType::END) {
-                        throw std::runtime_error("Unexpected token after expression at position " + std::to_string(currentToken.position));
-            }
-            if (debugMode) std::cout << "[Parser] parseExpression done" << std::endl;
-            return node;
-}
-
-=== ./makefile ===
-CXX := g++
-CXXFLAGS := -Ofast -Wall -Wextra -std=c++23 -pedantic -march=native \
-	-I/usr/include -Isrc/lexer -Isrc -Isrc/ast -Isrc/parser
-SRC_DIR := src
-BUILD_DIR := build
-OBJ_DIR := $(BUILD_DIR)/obj
-TARGET := $(BUILD_DIR)/main
-
-# find all .cpp sources under src/
-SRCS := $(shell find $(SRC_DIR) -name '*.cpp')
-# corresponding object files in OBJ_DIR preserving subdirs
-OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRCS))
-
-.PHONY: all clean
-
-all: $(TARGET)
-
-# link
-$(TARGET): $(OBJS)
-	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $@
-
-# compile .cpp -> .o, create directory if needed
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
-	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-clean:
-	rm -rf $(BUILD_DIR)
-
-
-=== ./.clangd ===
-CompileFlags:
-  Add: [-I/usr/include, -Isrc/lexer/, -Isrc/, -Isrc/ast/, -Isrc/parser/, -std=c++23, -Wall, -Wextra]
-Diagnostics:
-  UnusedIncludes: Strict
-Index:
-  Background: Build
-
-=== ./.git/info/exclude ===
-# git ls-files --others --exclude-from=.git/info/exclude
-# Lines that start with '#' are comments.
-# For a project mostly in C, the following would be a good set of
-# exclude patterns (uncomment them if you want to use them):
-# *.[oa]
-# *~
-
-=== ./.git/hooks/update.sample ===
-#!/bin/sh
-#
-# An example hook script to block unannotated tags from entering.
-# Called by "git receive-pack" with arguments: refname sha1-old sha1-new
-#
-# To enable this hook, rename this file to "update".
-#
-# Config
-# ------
-# hooks.allowunannotated
-#   This boolean sets whether unannotated tags will be allowed into the
-#   repository.  By default they won't be.
-# hooks.allowdeletetag
-#   This boolean sets whether deleting tags will be allowed in the
-#   repository.  By default they won't be.
-# hooks.allowmodifytag
-#   This boolean sets whether a tag may be modified after creation. By default
-#   it won't be.
-# hooks.allowdeletebranch
-#   This boolean sets whether deleting branches will be allowed in the
-#   repository.  By default they won't be.
-# hooks.denycreatebranch
-#   This boolean sets whether remotely creating branches will be denied
-#   in the repository.  By default this is allowed.
-#
-
-# --- Command line
-refname="$1"
-oldrev="$2"
-newrev="$3"
-
-# --- Safety check
-if [ -z "$GIT_DIR" ]; then
-	echo "Don't run this script from the command line." >&2
-	echo " (if you want, you could supply GIT_DIR then run" >&2
-	echo "  $0 <ref> <oldrev> <newrev>)" >&2
-	exit 1
-fi
-
-if [ -z "$refname" -o -z "$oldrev" -o -z "$newrev" ]; then
-	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
-	exit 1
-fi
-
-# --- Config
-allowunannotated=$(git config --type=bool hooks.allowunannotated)
-allowdeletebranch=$(git config --type=bool hooks.allowdeletebranch)
-denycreatebranch=$(git config --type=bool hooks.denycreatebranch)
-allowdeletetag=$(git config --type=bool hooks.allowdeletetag)
-allowmodifytag=$(git config --type=bool hooks.allowmodifytag)
-
-# check for no description
-projectdesc=$(sed -e '1q' "$GIT_DIR/description")
-case "$projectdesc" in
-"Unnamed repository"* | "")
-	echo "*** Project description file hasn't been set" >&2
-	exit 1
-	;;
-esac
-
-# --- Check types
-# if $newrev is 0000...0000, it's a commit to delete a ref.
-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
-if [ "$newrev" = "$zero" ]; then
-	newrev_type=delete
-else
-	newrev_type=$(git cat-file -t $newrev)
-fi
-
-case "$refname","$newrev_type" in
-	refs/tags/*,commit)
-		# un-annotated tag
-		short_refname=${refname##refs/tags/}
-		if [ "$allowunannotated" != "true" ]; then
-			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
-			echo "*** Use 'git tag [ -a | -s ]' for tags you want to propagate." >&2
-			exit 1
-		fi
-		;;
-	refs/tags/*,delete)
-		# delete tag
-		if [ "$allowdeletetag" != "true" ]; then
-			echo "*** Deleting a tag is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/tags/*,tag)
-		# annotated tag
-		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
-		then
-			echo "*** Tag '$refname' already exists." >&2
-			echo "*** Modifying a tag is not allowed in this repository." >&2
-			exit 1
-		fi
-		;;
-	refs/heads/*,commit)
-		# branch
-		if [ "$oldrev" = "$zero" -a "$denycreatebranch" = "true" ]; then
-			echo "*** Creating a branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/heads/*,delete)
-		# delete branch
-		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	refs/remotes/*,commit)
-		# tracking branch
-		;;
-	refs/remotes/*,delete)
-		# delete tracking branch
-		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
-			exit 1
-		fi
-		;;
-	*)
-		# Anything else (is there anything else?)
-		echo "*** Update hook: unknown type of update to ref $refname of type $newrev_type" >&2
-		exit 1
-		;;
-esac
-
-# --- Finished
-exit 0
-
-=== ./.git/hooks/sendemail-validate.sample ===
-#!/bin/sh
-
-# An example hook script to validate a patch (and/or patch series) before
-# sending it via email.
-#
-# The hook should exit with non-zero status after issuing an appropriate
-# message if it wants to prevent the email(s) from being sent.
-#
-# To enable this hook, rename this file to "sendemail-validate".
-#
-# By default, it will only check that the patch(es) can be applied on top of
-# the default upstream branch without conflicts in a secondary worktree. After
-# validation (successful or not) of the last patch of a series, the worktree
-# will be deleted.
-#
-# The following config variables can be set to change the default remote and
-# remote ref that are used to apply the patches against:
-#
-#   sendemail.validateRemote (default: origin)
-#   sendemail.validateRemoteRef (default: HEAD)
-#
-# Replace the TODO placeholders with appropriate checks according to your
-# needs.
-
-validate_cover_letter () {
-	file="$1"
-	# TODO: Replace with appropriate checks (e.g. spell checking).
-	true
-}
-
-validate_patch () {
-	file="$1"
-	# Ensure that the patch applies without conflicts.
-	git am -3 "$file" || return
-	# TODO: Replace with appropriate checks for this patch
-	# (e.g. checkpatch.pl).
-	true
-}
-
-validate_series () {
-	# TODO: Replace with appropriate checks for the whole series
-	# (e.g. quick build, coding style checks, etc.).
-	true
-}
-
-# main -------------------------------------------------------------------------
-
-if test "$GIT_SENDEMAIL_FILE_COUNTER" = 1
-then
-	remote=$(git config --default origin --get sendemail.validateRemote) &&
-	ref=$(git config --default HEAD --get sendemail.validateRemoteRef) &&
-	worktree=$(mktemp --tmpdir -d sendemail-validate.XXXXXXX) &&
-	git worktree add -fd --checkout "$worktree" "refs/remotes/$remote/$ref" &&
-	git config --replace-all sendemail.validateWorktree "$worktree"
-else
-	worktree=$(git config --get sendemail.validateWorktree)
-fi || {
-	echo "sendemail-validate: error: failed to prepare worktree" >&2
-	exit 1
-}
-
-unset GIT_DIR GIT_WORK_TREE
-cd "$worktree" &&
-
-if grep -q "^diff --git " "$1"
-then
-	validate_patch "$1"
-else
-	validate_cover_letter "$1"
-fi &&
-
-if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
-then
-	git config --unset-all sendemail.validateWorktree &&
-	trap 'git worktree remove -ff "$worktree"' EXIT &&
-	validate_series
-fi
-
-=== ./.git/hooks/push-to-checkout.sample ===
-#!/bin/sh
-
-# An example hook script to update a checked-out tree on a git push.
-#
-# This hook is invoked by git-receive-pack(1) when it reacts to git
-# push and updates reference(s) in its repository, and when the push
-# tries to update the branch that is currently checked out and the
-# receive.denyCurrentBranch configuration variable is set to
-# updateInstead.
-#
-# By default, such a push is refused if the working tree and the index
-# of the remote repository has any difference from the currently
-# checked out commit; when both the working tree and the index match
-# the current commit, they are updated to match the newly pushed tip
-# of the branch. This hook is to be used to override the default
-# behaviour; however the code below reimplements the default behaviour
-# as a starting point for convenient modification.
-#
-# The hook receives the commit with which the tip of the current
-# branch is going to be updated:
-commit=$1
-
-# It can exit with a non-zero status to refuse the push (when it does
-# so, it must not modify the index or the working tree).
-die () {
-	echo >&2 "$*"
-	exit 1
-}
-
-# Or it can make any necessary changes to the working tree and to the
-# index to bring them to the desired state when the tip of the current
-# branch is updated to the new commit, and exit with a zero status.
-#
-# For example, the hook can simply run git read-tree -u -m HEAD "$1"
-# in order to emulate git fetch that is run in the reverse direction
-# with git push, as the two-tree form of git read-tree -u -m is
-# essentially the same as git switch or git checkout that switches
-# branches while keeping the local changes in the working tree that do
-# not interfere with the difference between the branches.
-
-# The below is a more-or-less exact translation to shell of the C code
-# for the default behaviour for git's push-to-checkout hook defined in
-# the push_to_deploy() function in builtin/receive-pack.c.
-#
-# Note that the hook will be executed from the repository directory,
-# not from the working tree, so if you want to perform operations on
-# the working tree, you will have to adapt your code accordingly, e.g.
-# by adding "cd .." or using relative paths.
-
-if ! git update-index -q --ignore-submodules --refresh
-then
-	die "Up-to-date check failed"
-fi
-
-if ! git diff-files --quiet --ignore-submodules --
-then
-	die "Working directory has unstaged changes"
-fi
-
-# This is a rough translation of:
-#
-#   head_has_history() ? "HEAD" : EMPTY_TREE_SHA1_HEX
-if git cat-file -e HEAD 2>/dev/null
-then
-	head=HEAD
-else
-	head=$(git hash-object -t tree --stdin </dev/null)
-fi
-
-if ! git diff-index --quiet --cached --ignore-submodules $head --
-then
-	die "Working directory has staged changes"
-fi
-
-if ! git read-tree -u -m "$commit"
-then
-	die "Could not update working tree to new HEAD"
-fi
-
-=== ./.git/hooks/pre-receive.sample ===
-#!/bin/sh
-#
-# An example hook script to make use of push options.
-# The example simply echoes all push options that start with 'echoback='
-# and rejects all pushes when the "reject" push option is used.
-#
-# To enable this hook, rename this file to "pre-receive".
-
-if test -n "$GIT_PUSH_OPTION_COUNT"
-then
-	i=0
-	while test "$i" -lt "$GIT_PUSH_OPTION_COUNT"
-	do
-		eval "value=\$GIT_PUSH_OPTION_$i"
-		case "$value" in
-		echoback=*)
-			echo "echo from the pre-receive-hook: ${value#*=}" >&2
-			;;
-		reject)
-			exit 1
-		esac
-		i=$((i + 1))
-	done
-fi
-
-=== ./.git/hooks/pre-rebase.sample ===
-#!/bin/sh
-#
-# Copyright (c) 2006, 2008 Junio C Hamano
-#
-# The "pre-rebase" hook is run just before "git rebase" starts doing
-# its job, and can prevent the command from running by exiting with
-# non-zero status.
-#
-# The hook is called with the following parameters:
-#
-# $1 -- the upstream the series was forked from.
-# $2 -- the branch being rebased (or empty when rebasing the current branch).
-#
-# This sample shows how to prevent topic branches that are already
-# merged to 'next' branch from getting rebased, because allowing it
-# would result in rebasing already published history.
-
-publish=next
-basebranch="$1"
-if test "$#" = 2
-then
-	topic="refs/heads/$2"
-else
-	topic=`git symbolic-ref HEAD` ||
-	exit 0 ;# we do not interrupt rebasing detached HEAD
-fi
-
-case "$topic" in
-refs/heads/??/*)
-	;;
-*)
-	exit 0 ;# we do not interrupt others.
-	;;
-esac
-
-# Now we are dealing with a topic branch being rebased
-# on top of master.  Is it OK to rebase it?
-
-# Does the topic really exist?
-git show-ref -q "$topic" || {
-	echo >&2 "No such branch $topic"
-	exit 1
-}
-
-# Is topic fully merged to master?
-not_in_master=`git rev-list --pretty=oneline ^master "$topic"`
-if test -z "$not_in_master"
-then
-	echo >&2 "$topic is fully merged to master; better remove it."
-	exit 1 ;# we could allow it, but there is no point.
-fi
-
-# Is topic ever merged to next?  If so you should not be rebasing it.
-only_next_1=`git rev-list ^master "^$topic" ${publish} | sort`
-only_next_2=`git rev-list ^master           ${publish} | sort`
-if test "$only_next_1" = "$only_next_2"
-then
-	not_in_topic=`git rev-list "^$topic" master`
-	if test -z "$not_in_topic"
-	then
-		echo >&2 "$topic is already up to date with master"
-		exit 1 ;# we could allow it, but there is no point.
-	else
-		exit 0
-	fi
-else
-	not_in_next=`git rev-list --pretty=oneline ^${publish} "$topic"`
-	/usr/bin/perl -e '
-		my $topic = $ARGV[0];
-		my $msg = "* $topic has commits already merged to public branch:\n";
-		my (%not_in_next) = map {
-			/^([0-9a-f]+) /;
-			($1 => 1);
-		} split(/\n/, $ARGV[1]);
-		for my $elem (map {
-				/^([0-9a-f]+) (.*)$/;
-				[$1 => $2];
-			} split(/\n/, $ARGV[2])) {
-			if (!exists $not_in_next{$elem->[0]}) {
-				if ($msg) {
-					print STDERR $msg;
-					undef $msg;
-				}
-				print STDERR " $elem->[1]\n";
-			}
-		}
-	' "$topic" "$not_in_next" "$not_in_master"
-	exit 1
-fi
-
-<<\DOC_END
-
-This sample hook safeguards topic branches that have been
-published from being rewound.
-
-The workflow assumed here is:
-
- * Once a topic branch forks from "master", "master" is never
-   merged into it again (either directly or indirectly).
-
- * Once a topic branch is fully cooked and merged into "master",
-   it is deleted.  If you need to build on top of it to correct
-   earlier mistakes, a new topic branch is created by forking at
-   the tip of the "master".  This is not strictly necessary, but
-   it makes it easier to keep your history simple.
-
- * Whenever you need to test or publish your changes to topic
-   branches, merge them into "next" branch.
-
-The script, being an example, hardcodes the publish branch name
-to be "next", but it is trivial to make it configurable via
-$GIT_DIR/config mechanism.
-
-With this workflow, you would want to know:
-
-(1) ... if a topic branch has ever been merged to "next".  Young
-    topic branches can have stupid mistakes you would rather
-    clean up before publishing, and things that have not been
-    merged into other branches can be easily rebased without
-    affecting other people.  But once it is published, you would
-    not want to rewind it.
-
-(2) ... if a topic branch has been fully merged to "master".
-    Then you can delete it.  More importantly, you should not
-    build on top of it -- other people may already want to
-    change things related to the topic as patches against your
-    "master", so if you need further changes, it is better to
-    fork the topic (perhaps with the same name) afresh from the
-    tip of "master".
-
-Let's look at this example:
-
-		   o---o---o---o---o---o---o---o---o---o "next"
-		  /       /           /           /
-		 /   a---a---b A     /           /
-		/   /               /           /
-	       /   /   c---c---c---c B         /
-	      /   /   /             \         /
-	     /   /   /   b---b C     \       /
-	    /   /   /   /             \     /
-    ---o---o---o---o---o---o---o---o---o---o---o "master"
-
-
-A, B and C are topic branches.
-
- * A has one fix since it was merged up to "next".
-
- * B has finished.  It has been fully merged up to "master" and "next",
-   and is ready to be deleted.
-
- * C has not merged to "next" at all.
-
-We would want to allow C to be rebased, refuse A, and encourage
-B to be deleted.
-
-To compute (1):
-
-	git rev-list ^master ^topic next
-	git rev-list ^master        next
-
-	if these match, topic has not merged in next at all.
-
-To compute (2):
-
-	git rev-list master..topic
-
-	if this is empty, it is fully merged to "master".
-
-DOC_END
-
-=== ./.git/hooks/pre-push.sample ===
-#!/bin/sh
-
-# An example hook script to verify what is about to be pushed.  Called by "git
-# push" after it has checked the remote status, but before anything has been
-# pushed.  If this script exits with a non-zero status nothing will be pushed.
-#
-# This hook is called with the following parameters:
-#
-# $1 -- Name of the remote to which the push is being done
-# $2 -- URL to which the push is being done
-#
-# If pushing without using a named remote those arguments will be equal.
-#
-# Information about the commits which are being pushed is supplied as lines to
-# the standard input in the form:
-#
-#   <local ref> <local oid> <remote ref> <remote oid>
-#
-# This sample shows how to prevent push of commits where the log message starts
-# with "WIP" (work in progress).
-
-remote="$1"
-url="$2"
-
-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
-
-while read local_ref local_oid remote_ref remote_oid
-do
-	if test "$local_oid" = "$zero"
-	then
-		# Handle delete
-		:
-	else
-		if test "$remote_oid" = "$zero"
-		then
-			# New branch, examine all commits
-			range="$local_oid"
-		else
-			# Update to existing branch, examine new commits
-			range="$remote_oid..$local_oid"
-		fi
-
-		# Check for WIP commit
-		commit=$(git rev-list -n 1 --grep '^WIP' "$range")
-		if test -n "$commit"
-		then
-			echo >&2 "Found WIP commit in $local_ref, not pushing"
-			exit 1
-		fi
-	fi
-done
-
-exit 0
-
-=== ./.git/hooks/prepare-commit-msg.sample ===
-#!/bin/sh
-#
-# An example hook script to prepare the commit log message.
-# Called by "git commit" with the name of the file that has the
-# commit message, followed by the description of the commit
-# message's source.  The hook's purpose is to edit the commit
-# message file.  If the hook fails with a non-zero status,
-# the commit is aborted.
-#
-# To enable this hook, rename this file to "prepare-commit-msg".
-
-# This hook includes three examples. The first one removes the
-# "# Please enter the commit message..." help message.
-#
-# The second includes the output of "git diff --name-status -r"
-# into the message, just before the "git status" output.  It is
-# commented because it doesn't cope with --amend or with squashed
-# commits.
-#
-# The third example adds a Signed-off-by line to the message, that can
-# still be edited.  This is rarely a good idea.
-
-COMMIT_MSG_FILE=$1
-COMMIT_SOURCE=$2
-SHA1=$3
-
-/usr/bin/perl -i.bak -ne 'print unless(m/^. Please enter the commit message/..m/^#$/)' "$COMMIT_MSG_FILE"
-
-# case "$COMMIT_SOURCE,$SHA1" in
-#  ,|template,)
-#    /usr/bin/perl -i.bak -pe '
-#       print "\n" . `git diff --cached --name-status -r`
-# 	 if /^#/ && $first++ == 0' "$COMMIT_MSG_FILE" ;;
-#  *) ;;
-# esac
-
-# SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# git interpret-trailers --in-place --trailer "$SOB" "$COMMIT_MSG_FILE"
-# if test -z "$COMMIT_SOURCE"
-# then
-#   /usr/bin/perl -i.bak -pe 'print "\n" if !$first_line++' "$COMMIT_MSG_FILE"
-# fi
-
-=== ./.git/hooks/pre-merge-commit.sample ===
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed.
-# Called by "git merge" with no arguments.  The hook should
-# exit with non-zero status after issuing an appropriate message to
-# stderr if it wants to stop the merge commit.
-#
-# To enable this hook, rename this file to "pre-merge-commit".
-
-. git-sh-setup
-test -x "$GIT_DIR/hooks/pre-commit" &&
-        exec "$GIT_DIR/hooks/pre-commit"
-:
-
-=== ./.git/hooks/pre-commit.sample ===
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed.
-# Called by "git commit" with no arguments.  The hook should
-# exit with non-zero status after issuing an appropriate message if
-# it wants to stop the commit.
-#
-# To enable this hook, rename this file to "pre-commit".
-
-if git rev-parse --verify HEAD >/dev/null 2>&1
-then
-	against=HEAD
-else
-	# Initial commit: diff against an empty tree object
-	against=$(git hash-object -t tree /dev/null)
-fi
-
-# If you want to allow non-ASCII filenames set this variable to true.
-allownonascii=$(git config --type=bool hooks.allownonascii)
-
-# Redirect output to stderr.
-exec 1>&2
-
-# Cross platform projects tend to avoid non-ASCII filenames; prevent
-# them from being added to the repository. We exploit the fact that the
-# printable range starts at the space character and ends with tilde.
-if [ "$allownonascii" != "true" ] &&
-	# Note that the use of brackets around a tr range is ok here, (it's
-	# even required, for portability to Solaris 10's /usr/bin/tr), since
-	# the square bracket bytes happen to fall in the designated range.
-	test $(git diff-index --cached --name-only --diff-filter=A -z $against |
-	  LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
-then
-	cat <<\EOF
-Error: Attempt to add a non-ASCII file name.
-
-This can cause problems if you want to work with people on other platforms.
-
-To be portable it is advisable to rename the file.
-
-If you know what you are doing you can disable this check using:
-
-  git config hooks.allownonascii true
-EOF
-	exit 1
-fi
-
-# If there are whitespace errors, print the offending file names and fail.
-exec git diff-index --check --cached $against --
-
-=== ./.git/hooks/pre-applypatch.sample ===
-#!/bin/sh
-#
-# An example hook script to verify what is about to be committed
-# by applypatch from an e-mail message.
-#
-# The hook should exit with non-zero status after issuing an
-# appropriate message if it wants to stop the commit.
-#
-# To enable this hook, rename this file to "pre-applypatch".
-
-. git-sh-setup
-precommit="$(git rev-parse --git-path hooks/pre-commit)"
-test -x "$precommit" && exec "$precommit" ${1+"$@"}
-:
-
-=== ./.git/hooks/post-update.sample ===
-#!/bin/sh
-#
-# An example hook script to prepare a packed repository for use over
-# dumb transports.
-#
-# To enable this hook, rename this file to "post-update".
-
-exec git update-server-info
-
-=== ./.git/hooks/fsmonitor-watchman.sample ===
-#!/usr/bin/perl
-
-use strict;
-use warnings;
-use IPC::Open2;
-
-# An example hook script to integrate Watchman
-# (https://facebook.github.io/watchman/) with git to speed up detecting
-# new and modified files.
-#
-# The hook is passed a version (currently 2) and last update token
-# formatted as a string and outputs to stdout a new update token and
-# all files that have been modified since the update token. Paths must
-# be relative to the root of the working tree and separated by a single NUL.
-#
-# To enable this hook, rename this file to "query-watchman" and set
-# 'git config core.fsmonitor .git/hooks/query-watchman'
-#
-my ($version, $last_update_token) = @ARGV;
-
-# Uncomment for debugging
-# print STDERR "$0 $version $last_update_token\n";
-
-# Check the hook interface version
-if ($version ne 2) {
-	die "Unsupported query-fsmonitor hook version '$version'.\n" .
-	    "Falling back to scanning...\n";
-}
-
-my $git_work_tree = get_working_dir();
-
-my $retry = 1;
-
-my $json_pkg;
-eval {
-	require JSON::XS;
-	$json_pkg = "JSON::XS";
-	1;
-} or do {
-	require JSON::PP;
-	$json_pkg = "JSON::PP";
-};
-
-launch_watchman();
-
-sub launch_watchman {
-	my $o = watchman_query();
-	if (is_work_tree_watched($o)) {
-		output_result($o->{clock}, @{$o->{files}});
-	}
-}
-
-sub output_result {
-	my ($clockid, @files) = @_;
-
-	# Uncomment for debugging watchman output
-	# open (my $fh, ">", ".git/watchman-output.out");
-	# binmode $fh, ":utf8";
-	# print $fh "$clockid\n@files\n";
-	# close $fh;
-
-	binmode STDOUT, ":utf8";
-	print $clockid;
-	print "\0";
-	local $, = "\0";
-	print @files;
-}
-
-sub watchman_clock {
-	my $response = qx/watchman clock "$git_work_tree"/;
-	die "Failed to get clock id on '$git_work_tree'.\n" .
-		"Falling back to scanning...\n" if $? != 0;
-
-	return $json_pkg->new->utf8->decode($response);
-}
-
-sub watchman_query {
-	my $pid = open2(\*CHLD_OUT, \*CHLD_IN, 'watchman -j --no-pretty')
-	or die "open2() failed: $!\n" .
-	"Falling back to scanning...\n";
-
-	# In the query expression below we're asking for names of files that
-	# changed since $last_update_token but not from the .git folder.
-	#
-	# To accomplish this, we're using the "since" generator to use the
-	# recency index to select candidate nodes and "fields" to limit the
-	# output to file names only. Then we're using the "expression" term to
-	# further constrain the results.
-	my $last_update_line = "";
-	if (substr($last_update_token, 0, 1) eq "c") {
-		$last_update_token = "\"$last_update_token\"";
-		$last_update_line = qq[\n"since": $last_update_token,];
-	}
-	my $query = <<"	END";
-		["query", "$git_work_tree", {$last_update_line
-			"fields": ["name"],
-			"expression": ["not", ["dirname", ".git"]]
-		}]
-	END
-
-	# Uncomment for debugging the watchman query
-	# open (my $fh, ">", ".git/watchman-query.json");
-	# print $fh $query;
-	# close $fh;
-
-	print CHLD_IN $query;
-	close CHLD_IN;
-	my $response = do {local $/; <CHLD_OUT>};
-
-	# Uncomment for debugging the watch response
-	# open ($fh, ">", ".git/watchman-response.json");
-	# print $fh $response;
-	# close $fh;
-
-	die "Watchman: command returned no output.\n" .
-	"Falling back to scanning...\n" if $response eq "";
-	die "Watchman: command returned invalid output: $response\n" .
-	"Falling back to scanning...\n" unless $response =~ /^\{/;
-
-	return $json_pkg->new->utf8->decode($response);
-}
-
-sub is_work_tree_watched {
-	my ($output) = @_;
-	my $error = $output->{error};
-	if ($retry > 0 and $error and $error =~ m/unable to resolve root .* directory (.*) is not watched/) {
-		$retry--;
-		my $response = qx/watchman watch "$git_work_tree"/;
-		die "Failed to make watchman watch '$git_work_tree'.\n" .
-		    "Falling back to scanning...\n" if $? != 0;
-		$output = $json_pkg->new->utf8->decode($response);
-		$error = $output->{error};
-		die "Watchman: $error.\n" .
-		"Falling back to scanning...\n" if $error;
-
-		# Uncomment for debugging watchman output
-		# open (my $fh, ">", ".git/watchman-output.out");
-		# close $fh;
-
-		# Watchman will always return all files on the first query so
-		# return the fast "everything is dirty" flag to git and do the
-		# Watchman query just to get it over with now so we won't pay
-		# the cost in git to look up each individual file.
-		my $o = watchman_clock();
-		$error = $output->{error};
-
-		die "Watchman: $error.\n" .
-		"Falling back to scanning...\n" if $error;
-
-		output_result($o->{clock}, ("/"));
-		$last_update_token = $o->{clock};
-
-		eval { launch_watchman() };
-		return 0;
-	}
-
-	die "Watchman: $error.\n" .
-	"Falling back to scanning...\n" if $error;
-
-	return 1;
-}
-
-sub get_working_dir {
-	my $working_dir;
-	if ($^O =~ 'msys' || $^O =~ 'cygwin') {
-		$working_dir = Win32::GetCwd();
-		$working_dir =~ tr/\\/\//;
-	} else {
-		require Cwd;
-		$working_dir = Cwd::cwd();
-	}
-
-	return $working_dir;
-}
-
-=== ./.git/hooks/commit-msg.sample ===
-#!/bin/sh
-#
-# An example hook script to check the commit log message.
-# Called by "git commit" with one argument, the name of the file
-# that has the commit message.  The hook should exit with non-zero
-# status after issuing an appropriate message if it wants to stop the
-# commit.  The hook is allowed to edit the commit message file.
-#
-# To enable this hook, rename this file to "commit-msg".
-
-# Uncomment the below to add a Signed-off-by line to the message.
-# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
-# hook is more suited to it.
-#
-# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
-
-# This example catches duplicate Signed-off-by lines.
-
-test "" = "$(grep '^Signed-off-by: ' "$1" |
-	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
-	echo >&2 Duplicate Signed-off-by lines.
-	exit 1
-}
-
-=== ./.git/hooks/applypatch-msg.sample ===
-#!/bin/sh
-#
-# An example hook script to check the commit log message taken by
-# applypatch from an e-mail message.
-#
-# The hook should exit with non-zero status after issuing an
-# appropriate message if it wants to stop the commit.  The hook is
-# allowed to edit the commit message file.
-#
-# To enable this hook, rename this file to "applypatch-msg".
-
-. git-sh-setup
-commitmsg="$(git rev-parse --git-path hooks/commit-msg)"
-test -x "$commitmsg" && exec "$commitmsg" ${1+"$@"}
-:
-
-=== ./.git/description ===
-Unnamed repository; edit this file 'description' to name the repository.
-
-=== ./.git/objects/ce/a7e7509cd20674248600212b4055f4aee60257 ===
-x=MÂ0D=çWä^Kü¸HÁƒU„œE<ˆ‡m6”àš”lùù¶–zzÌ0ğ¦£ĞÉía³:‡ÏàÈ^	zn„”'ÄF>k­2Gå¼¡Œv-kÍÑ(²ÅFµ¤…ÀéßypÂ£©ªİ~œ=€h‚-)ÂK\ô>præg¼ûÌõ¬âFŞRt&	íÑ–éQæİÇıx¬ÍP|f< 
-=== ./.git/objects/f3/131e480a9f96e2510050b36b8f39e04e0619bf ===
-xR]OÜ0ìëùW¬D*®&jy@:q_®B½ê rì=pqìÈNüûîæ.PŞú­gwggvS¹PÁî×OG770™ÂÃx,(<9?8½à·œ/UjA^+çè‹/mT Sk¦z<ş¶²A£|k5ÈZEı8õªµÏwb$ge—bi½vA³uéğã*^#=}ŸkTLÅÅâèşx¶àéÔ!¯fçÇPuÖ1?ü9 Yş–/ÊPı—‹Ó—Üü!U+ë…Ø€¥õØË¶nH¡‹tŞ*ÖÇÓ{ãY‘êú†,_‹*@zU#lnqÿfAŒ:Äˆ©	ŞXÿ $uK]h­‡AjC5Ÿ¹$u•±1±‹õ¤FµÒšßç”ŸyÀ—,_z²¼¢bû÷Ùü×í¤·¢*2G®&Ä°Z •l€³şI¼!œä™…í×O$GÙ>YN‡/îÏqß 2P	3êP7dmµ=ùHèˆªE râ+Ø%xDƒ†fÿ+Ÿ{\ùû%RC¶7èèOÄ(Ö ã’Xßÿ!ş¤íÍÈ
-=== ./.git/objects/f3/b3c926cd5071af59feb5335c5cdbcc7bccf786 ===
-x•R]kÂ0İsÅEat ú66u‚ìãiŠ ï#M®]XšÔ›¤SÆşûšê¶¶ˆb½'÷“sn¢L÷w·WİœXš10šcu¥æÊ„N¿?P¸E¼†³ÿŞibÌºÁt¹šlœafh7ù¿=¶Nà–cî&QÄ³Œ,|E¹O”äÃjßŒ¹ÑÖAÙ;ZGR§×€Ûœz£€˜LÛYI°fÊâ˜ø´^¿5ÆW½–o¹£ñáÈƒ¨ç’­•FÇe_N²`›ú*? ò¦9ye>P÷D¨]õÓÄÛÂ â›Xa¤ &
-VftÕÜ‚
-fùãŠuµË1x…Ü¡èÁ1#‰ÍlÚuÚš¯¹+ydJÕˆÖe¹¢=ÊĞ9Ë~Ã©ÅÖëŒ–¹Ï¤°n‡¤ö…¶§Ÿ0bé“Ëzf^=Éâ²…ù´vÌíâöœq¥µ¼Ï”t»@ı=Š~ {25-
-=== ./.git/objects/5a/2c648ba2ff65d3314a7978272187e742b28785 ===
-xÅXmo"7îg~Å”H¹İ¼	= /U›¶R?\Z©½OU{2‹Y¬{Ïë%—æÒßŞ±Ù{9Ej¤‹ñ<óÌ3ã™É¹Ãå ×ıê S$"¡­&^L(\JÅôl~ë&s¢gî“¹V”x—æt.Õ£{+×ú)¡™ö©{RhÆ™FËVÂIÃw¿ı~/‘ËS++Æœ%£8?¦tA8ü[^‹b¸	’‚ë«/ŞœH„¡@„DS4H¤È5šu®ZÏW•Ûûb>¦ÊxÁÒñ&%®¥¾gú)CŞLÃ3ZßG`m"üÃÓ³G:DV.¨RÌ¨¢¨.”XB\=;|ÏQ¿dBÀF…`ú!ÓêºÔô8ÖÔ^U,Õî&3¢@f(­“8pùEA8>ËO ø­2ß–ğTÅ¾ëkdX:™£t¢Æñ	X®Î1Â™c™E2C8LFóît)”¦ëÌ9½] _-.ïÒH¡‘åê[}±)`psoßÄP–‡cPa_”çËS×ò´‰å‘kyÔÄò¯µ¥Íy&"yŠ÷§}OAe\qM¬¨,¾û³Nz¦äÃ²ÒT!4›ÓøÄ¤‚¨ı[°œIãGø‡*ÙŞBÇu°Òı|›şƒwíë¹Ù;´ªN³+§KO‡aı\‡%áå‹˜’qqÀÌÇp}4ËcøºgÅÂˆûtğ¿tÛ(¿q¹ŠÙ…J'j¿ù °£PEÄ˜ğÚ^½ÜöıŞtïwLùk4ğ’€Ÿ´Õ\ò}…›±ÌpX•PNÛÄãe¯t•©J°>f7&×©éUV·»ÅŞ,»3šİT
-\Kp» Aæµ‘ìFËùoÎÒàj¬"ñ‚‘ì>¦ãTÓtÚ¿şÜ^µæ‹³îe·?ì}Ó¿è†o‡~¢\]=Œ×½³·İAo`ş]ö‡Ë~bw½ZEPïmúS!]ñpşÂ¼Lâ~#7ÁiOTZÌ©¨mc)9(2aDäïp]óã¶ßNè¸H7¿«GğÅB@z[¤tƒò“õ¶e©¢¶¥€ëF–ó¢ğÈî'ë¨"Œï®"‰–^šï‹Áâ,,ºÆ™QqrŸ¤/l½&WÌö¿6Í‰,4\_CûÜ5ÿ„*#Ğ6‡•PöÂŠ²³ß¢xÉÂP1áazádÓ×NíÀá!D+·æ•æL´áóç j®¡Ï`"ó×Ä¾øº€‰NÛ¦¡ïóª\à6ºœCw°cWz1¹ñ”ãbİílÖ¹L»lÙÇ6QdJ7q^€¢p¬vëŠO¯)©/Oš‚˜šòAğ¤)ˆ©#Oš‚ØÚÙ³tÊ†cVT+ßîÀİf‹¦;¶÷Íåİì`‰ÄĞRœ$õùæ:p?—‹±¥YI‹Åã’â^s?o^şQ¡¿=µ1Ö¶Ámÿã$jTS4%š-(ûÿ/	Ì@íÈwƒp•”&\W9ÇAP¶ğnr‡ûLnÑ¦+˜ÍçÀñjHÔz€]¥ÿw’Éd
-=== ./.git/objects/7a/4c266767a8e81d37998224f5dbdfcd883871f7 ===
-x½Xİo9¿gş
-‡JÙİrM¤>$”FwH|¤¨U™]Va½çõ6é¥üï{—`ğÒ‡\^BŒóå™ùÍd¶b3ôáıŸW¿½£q¸Ê"‚ª}òLøÅ²ZÙMØWG­0ßÒÙ]j…©ˆ"2×à„<‡$æ!§ñB?ÉbÆ#ÂI4]ãDÿ‚²Tp‚×JEYÕlª_~ÈâT ŞlÂvğ:š1¶B™e‹ ‰hœdÂ‡ó ŸÁÿ=|RßXDüüzÙT*ßP¡!ıJ“ÏK*HšàøzyZÒA¾’Z¹Ü‹”ş'¿<—šÁšæ×S§!NE+‹SºˆI„Â%æÀƒ=_””Ç  ¹µšúãz¨oM —£a¶.ÕWö#ÕN¥ë˜ÔÎıº6nœfmDTçdk·ÆºèüxXtwQ»¼ÏvFó”¯_ø?ıÚœì¥ñªÊMâÉ·5èn”úéŠé¾¶š‡~üÈS²H-eDCQªJ•Ë§e2¤Ns¼J‰™NºíoôÇƒ¥+×í<s˜©£Jc`>µ•qöª5@bÉÙS^í<‹]“)áœq¿Ú‹¿átXÕ,"Ï	‹I,(a)”Å¨Šj9V°iŞ³dõqf¼¡èFh=NŠ®ª:ÉEšÍ@P.¥èp¨‘wK¦ôäµï¹’SiY&P«…ª_TG|Dy+j‚pZ!¿·üƒ£¼-©ĞI­lçtßÿî(”ˆe3h»ÙŒ€ÏE XäçX.êr9‘j©¾Â×†eƒB,Â%Òé$§+x°sWœNNO>{²ªzVÈNM	HŠ}†èEctNß%ğ
-lÿ–ØqÚñ,ÆkùŠJrØa'ñá\İe›¯RİÉÙjvƒœ‘6m“JK+Îzn9!–p>ol/ÕU\Õ00ØŒşšÜ7uÃg=«Ââ‰íÁ®Ê@drë„¤Ô²mÜs²ÔTq3;5li˜tİÄÂTPv?dÂÜ”"l¥ˆô_n)ºŸ8ıæÌ¶ë~4rCîz–#£áx2½ë9õÜÂØ¾1{3ÎCT•*}/æ0œú1TÕií:<š°oR †6³Z¥a`ÿÙÖ ß9Š<AE£“(õèYšÀCôOBc?}mĞŠıe,lÚÜã µÈ±À^DÉ³ÈyÍ¦'{m1WÅFî@¨óÚzÕ #
-J¶lbÍæíğc1U€)†ó;a5ty`!Ú›üÏ<¹'iÇµËG5¦¶+
-ªµÑ•éŒŞY?Mn?=tû»ÁèÊÊcÉ©º$¹¤Á¦¶¥¦bš65KÏUZÓ¯’%vQc¸TK^a \évÜä×û¹[.İÌö‹]„.•ñ—tY#¡“ˆË«y¤Ù¼ë?8{½×0ïzÃÀï&`<éŞ»š÷yÿnôÙyıóú¸ßÿíø& ×½wµ˜ˆûrDİDÜŒƒ®Ó¨¶	P¹î¼3Ûú°0§päß~UüRã-]Êd´°è|˜oF	áX0^ŒƒPà‡‡Áâß;tÈJØş£ë3+XÿÆhJ:±äMê0#hŠ:‰\díb ^¶Rhtò^ÕPÏ
-=== ./.git/objects/a8/022d2724a1b21dcfa5c3295eda4cb2f9b486c4 ===
-xuOKÄ0Å=çS» ]AñÔêŞİ“àQòçµšMB’.Eñ»[ëaÔ¹ÍüŞƒ÷FY¯èîöæb¢ì’¼Ó[vÚ´yñÜu¿9ŸîuÊÆ İ¯N)Gvİ^meJô„	‘>Dˆ|’µ ÕÌîºş1»0æ¦Äü·<ƒ©$Ê{Kjì½A#
-ÛÉ³¡4pxí9#©QíJÿR…"¤9ŒG…ø?4p™[ş­Ñ½Œ€¡Ú‘ö.ÍáÃ¨,ë²ãò€jĞªïå¼Ä+:¡j¥Mø3i‡|À”—ØßY?ñL×zë
-=== ./.git/objects/a8/aa535d2ab2944664ef7dbc31d22986eae87539 ===
-x]ROo›0ßÙŸâ)§VB]×C»9à4ÖFÆi—£'x%8ÂfQ¿ıIÒi“Ÿßûı{®{WÃ·Çç§/® ·¼!$u§Ñº wÍ=<=>=ƒÔïïšÒŒGë½uXMı‡QÁ´	ìGcÀí¡éôx0	zø€“=¸:h;Øá d Ø:„ñnÎz4ØÜ‚öŞ5V#´®™f:D¾½í‡»ĞXT×‰ÅıLÒİ; šÛœmèÜ`4>Œ¶‰	Ø¡é§6j¸]÷öh¯q|¶í	*Ÿ<:ˆ:8ºÖîãßÌ¶NSİ[ß%ĞÚ]O;},Îù%ÑÇW7‚7}OÁ¢îÙë_usOÌ³AşkD>VÎ;şëÄz²ŸÆ)1ìhF63ş2Mˆ•¨|ïúŞ£µÆ­~ıwB^éÚı6³—ËVPê÷¼€YÄe«×+ßé¾‡Ú\C^ŒKŸvĞİTû€‹·º‡“g¾ÿm> ÿšA%VêJ¼‚RŠW±´Âó"7®Öb« ;$-ÔÄ
-h±ƒ¼È`?KÉª
-„$|Sæœai¾ÍxñKœ+>]A•€Hx…âçV°a2]#2]òœ«]BV\s%$P(©T<İæTB¹•¥¨Òg[ğb%‘…mX¡kÀ^ñ Õšæy¤"t‹êeÔ©(w’¿¬¬E1,.*£Ëœ]¨ĞTšS¾I £úÕIˆ"Il»¨ƒ·5‹¥ÈGñKE´‘ŠBI<&èRªÏÑ7^±¨äUd%Å&!1Nœ@tÁ¹‚]PbÔs@ŸÁ–ØMß´@ÆhX¸b¶xk~  (İTX
-=== ./.git/objects/79/f26c3c0242a36e79e221702cadbddb8ed2d3a0 ===
-x•’ßkƒ0Ç÷œ¿â /
-Ç(ƒ±aÇÀÙl4±&eÅj6dVeê`+ıß‘ZS¶‡å!9òÍİç~d[T[¸¹¾½˜ÕÉÛ.ªL™åeZt™‚»´i³L½Ş¢Êni‘4Èê]•ò«V°'0Yl>ĞÁãaè¢!EÁZ`è3½÷tµvÆå`¢nŒ"pÅ³éñ±Š%BÌ¹4Å rcÊ0#^ÀŸ®PoRëú ¦£ğJ—¡Çz½aøzœ	¹¡}q½ù¦ì/)“ş£¯Ë7Ü([’Ã‚IãtÓên[ä©c¼<5µÕ]ZViŸIÑ)Mş­6-ÔU“·yUjÒdÃ ,ècZ#Âqt^6­ùå\ÛÇÖÜ†ıá—0§$NXÛx9…;çÌá{ŒX]Í«ù€Ç´¡ı¹IgIz.?K¿¢
-=== ./.git/objects/79/1eca070544d85bdd6c129b539b27995f837723 ===
-xI
-1 =ç}$kwD¼ød’†!şß¹øoEAQ±·V&(¤ÃÌ´Õä¬ÏNêÌ¨cB+mŞ<&R•!âÅ…M„Ï|õ÷PC©µ8^Ÿ-”÷)övE´ “¥‘RìvNş#ëí±Š/
-5‚
-=== ./.git/objects/d5/ea698aae47265c59556014de2235a7e845d455 ===
-x½XQOã8¾çüŠ¹ ±Ğ,º@Hw×Şj8ÒI´wrR§µ’®íPV«ş÷;ik'PH‘®ªk{¾ù<ÏÄi '_NÏ~ÙaIgc
-îŒpAùç[ıåO]gµtAŸC:“,M®ŒI–
-É)y4çp†%“+ÇÁAJøOütÀø9îtò}@Ÿgœ
-À]kO¦1p2f$p	‰}aÇ”Æ³Ëcd“õú¢ë8&¤¨F–H |@8%|OŸF^‰²Â%asˆR¡’V\h°.ìï³2†a0M€°(­õ²‘oŠ°zë%¸Í¦²›»»¨rZ…ZÏÜ¯Øúkó.U ±w+)ìïZ¸¦ÅZøëkÂ+/İ’¹Û>ººÈ(¨Á‹®<İŒªm‹ü&åm‘›ÚS7×œ—]5ÇÂ
-NeÆÍ¦ë,Gyù#aIÉİaQ7¹;zÍ:Tp/†‰’ğl7-.Vøê²Ştû0Í$\\€{/È„vÀU?4Ã‘‡‡(&1&zIÇ
-MÆ1F¯éNæXïYÿ©Ä;¹ø«"¦¸;”yHÁĞ]‡ÌĞõ¯ÑfFò+ŸşsV¢­ıÖĞ­«¶ˆù^Ğeê3faF$‹e'O‹uªK2Àpx‹)[‚œ2˜ŒñV€$c<7“ùÆ)ÔNkiLÓ9ä¾Ì’(µÖô[á–nĞ_½-µ|á&¡Mõ@”%¡zòêºÁ””Î4È}H# Ú²A½;#Ğ¬ öXäC@åœRŒóíP÷*¨×Yì#ZğjSü\ë±§mÁş©€İ†aA@¦0Kç”+cÖæxY…Õ‰R€J¨€yŒ ı‘Xi
-ò[­$©4VëŞâ¯ıw/©·•”)¬ÉA#$	ú Ì9“R¹@ş;xvÀ`R}_ÄÛ—ìc¾/¾sÙ åı4'Ç”–¢ñTÔ3›k<Õ4ØLàXbççsõH…©¨àäsõp$©òÉçêá„rRå£ç–NbøH¨êyõ4ÄU¢~œNş¥U)•É*$5¹¥ãşIÍ&ëfêÛokŸZıÖI«}~ô¥}Ü>;?=?®wºşÇø>òO[gGgêï¤}~xÒ¶iSf]R”q‡ö¬çÌM«êK?¨^Ş[¬j¡^ÿ÷û¯p}Óë“‡şß·wıÁàÛÍ_£UÙe5	X‰å–©Eò¥È\Í[F˜éÎQµ)&ª®WmBñ+'kÌD$æ_"$V 9ª¯¿Öoz£T„šÂã4bÌ8T`FSÍ+úDâŒHºIPÙr)…j°J‡ñ#–ŒŸ.?y€éÜèã:d–Š¢U²ëQõ¸¼÷Ê)6ºê¹yÿ‘Æá6Ö°¡ÛøXb…×-ñQ
-¦cm9¶(şõz¨- $2œbæVi­Èåÿ_v¾İaQÎu'Õç<åE‡Eıù”È†§4Ÿ¼¥zíDEêiÙúb—‰éiáüô½D
-=== ./.git/objects/f7/df55c6954c73710f86ef5abce6164679c4f39d ===
-xÕZmoÛ6Şgÿ
-Îj9Í’­Ty)\×ÛÄ/ìCÑ²Ä8BmÒ¡¨¼ Íß‘”Ro¦­vØú!u$òîx÷ÜÃ»sæK:Go~{óë/Bâ/ã £öÄcf7íVöì8¤gØ[jÏVxEÙ£ş$â~ğñš›YH§­–’ëºêÇ§$â¶¸.È†%/~X³}4§t‰˜„‰’ß<]-ñfZ¦í#?f>£Ÿ1qºûéÎ!°“H§rµ|¦ö¡/^pç;İ£§Vë†JÌŞ /-¤ı¯‘“Ééæ^jëÔ¡|st|ŒÚ•ÜO¨§4º©Éˆ›\ã“¶Xq‡ş•ïEü8$üÔÑÏv Öuƒtúg¡İyË8‘kˆ‘Ï¥ahM#¥ØX OCR¢,‚ğ`,ÅOÆoúnt¢‚t°À|„Ò°˜Û›:r„ï•ïÜÿ§óò€©¯°#1<ƒ0‹LÀ>ÇÀ»$M£l-òlêÖ¾2ÃM´CJŒÊ`™ZgÆ}´ ¼Bšrkä‰¶£O2ÿ‹ø£÷*%YLx¸ÂWX8Ğ‘?Áèæq‘
-÷mx"y‰Ó+EM¦’taWP‡wqµ ÄRDLÂÛ_­9;îMg# ¥ÓŒgÖ‚h‰/²­ï-— ÷®á…ÄŞa)
-Äû‘·Â&a
-ŠÓISü¾'ÒÎ"[¥†!,sUìR5*`ÙuÏ'½‹Áhµ	ªQÇé ïšc†„DI6Òîy"Syr‚ÚŒRŞÎÇˆ@Ì)Ğ5’îíÁ4ÉÒ·Tb(ËF×í‡Ã^^]`%à´óïwPH8Óİ{•'2A©›¦T¬ö„Y¸¸ÙÂ…%1¿(Æ¼kó‚-!¹ƒ`J®¼ÏøJeÔñ»xìq¼–)å^âÕ3õò—ƒŸ¡PKèTâtğ¤sØ©ÁÃ<fÄN±*Pg¨Ã…’¿óJ^F¸¦|!ğØÂÃß+ U>H¹A–òqš¦ºŸáà€¤SÄô\>™	ù$³À˜ZMÒT/ u¾I`“Ê£Ëá»Áì´HSµv×ü4Ó0 ñ|‰EUa5î,Y™î¨ÈÓªph~r@€Úúú™°pyäèE÷îw†¤ÜDdR:”Öå†×8wr~9ÍØ ‡¬~70 /Iü¥[•¶òŒ¦ÓÍxÙ˜8<5¶Q&;]cæ‘ Mø4(Zêì@T—‚ ‡!‰##U%ê ~1\'RPwŸdÌ²†@Qan•§èÏfyl‹Å\)ü*ÁÎ²Ò0@7FèLı“¦¿)9áÕrıñh:»šœ¡¯_QQ½z;¨ƒ›t†ª‘¨UÀ³*GE&„S¥]ôÚê³6‚2jĞ6­ÖÏX‘öú’Ä…ûNÔîÜ#\…Z˜®ºuÊ½s>şc6o*İ¯ÛPôìİh÷`÷İÓ³†÷ÇÓİ5Ïz4_ŒÇ³İUO?\4ØİËm±^ìÕ¨îCîßÈ¬®ª#&Xçz…?Wv¢§äj/IûÍaèô¹Zõ™¯sé‚ßÓÆR©¸™L@°)2
-`mJôiÔÌF@Œ)È¦™DBS¤ÏÍDŠ¬0EF·Œ7“)òÔ”)›Ğ­ àk/^rwœÍ
-D·ıÍP*Å¦¸¥ö³<³­ÎkïÙéÕeş–ÆonÙ­Ún~š°±ï²èˆl+eÈÙµ-0®X(¹ô0ßß„Ğ#l¬+’¾J™Blsˆ½ÔGï÷-5‹zFâ,-Ä °ùøòS¡Ó¦¶ „±\˜HÒâo3<ô½»AE— N
-R}#=ÕšªŠ·²Y†¨ÓÅzc¤M.ö
-CH©¡²Pu}¡·.ŸF¦Î-i¬Ÿ[w5)N%$”„ºæOö
-úŒn/ß‡wyÇYæ‚h¡Ú˜	{5ÿÆcˆ®mêzÕš¾EW@~ç§N5, .ıaLÜÊ¢Q”ñ›¢b‡JÆ·p:9Î/íÉuñIt
-]FP³¯¨toC¾K`*¶o1³ÜÆŞ2ä¾±óŠ„i*c+ ¦Ùa†Û¨ƒ—½s¤Æ3¹¶µ³9	cÚÂ-`¨Gv'<–Ÿ[›$O_ä4Æ`”ÑŞ'çŒ9‘ó¢&cì‚˜ÆO·Ôş¯\hİ
-ä¶\<¡÷Qˆ‹ı[Á{óØIÄ¦ ¶\¬'ã¿ê» •+ªQıÍøªdZÿ+åóİoU%¡.š•ÃºÄ7’õÊühI_ÓYïÂ†½¦ç½éŸu H¨Âæ:E­ÙÙ“¬qXÃßVvT¤b£Ñü–µ% øº–á(‚/§›ĞĞ³”:øÊ"(©:_–S|åŸ]‰®;½¯C`uŸwIÒ?mHş6G}IG|£¦O¿:í@¦|òlG@	®óg®øÂªN[
-=== ./.git/objects/ac/e8efbe9802b2c6f0e16b00561a610a77faec63 ===
-x+)JMU06g040031QpñËOIÕË`ˆÒIé^ô?õ²¡We…ºbûs§Mí­ :¨ş
-=== ./.git/objects/83/efaba5b9768839a152c0f2c9180595583f9da2 ===
-x+)JMU040g040031QğI­H-ÒK.(`¨òQKO_ñBÖ|f“Ê×Û÷ÏvX~GQ”Á°‚IW]eá&ÙóKkÆİòÙôsKÛ¨’üìÔ<½†ÊO96LN‹ó*)è¬İ{»ïÒå £J.,
-=== ./.git/objects/15/527a8c26c8005e530e86e4a2c1d782c3d769a3 ===
-x+)JMU07a040031QH,*N-ÒK.(`ø~?ôØTŸâBş¶÷Q{‰¹Uù<UUÃçÍ'ÕÎ®ü·Õ8&æö™ê3ßÛ 	³#N
-=== ./.git/objects/13/394bdc29e7fc4ef4aaa7c577da32be22224c7f ===
-x+)JMU046d01 …Äâ†5/Şï›Á´éØ‡‡ÙaR‰\å¿Ş$CdsR+R‹šß¯^º³¬ÃraĞO'%X§FØÏ]dh``fb¢›˜™§—\PÀpõUf×:wµ˜ÈĞ‘{J¦Ë_¸^	…˜QXT4D4¨ªGíC\0_Û“E¯7¾¹ E91
-=== ./.git/objects/d2/427548f502fe62cd6404fb86d71ec1377e95ab ===
-x+)JMU040d040031QĞKÎIÌKOa8·üyÀœKl%*mŠÚ¡_Ö=c
-‡*ÉMÌNMËÌIeø,,çÁ5Ú£@†€ÍÙı–üØ$÷› BqQ2ƒ°¥÷Íçü¾¬Z~´ü–Ñ>%%Ÿz Ï(y
-=== ./.git/objects/51/f4d6c511ea3180c7a640958865c1e1b3cf027a ===
-xu“É²¢H EkÍWäèbÆ$âuG%£(2‰€î˜„„DÔ¯ï×]Ûî»<7îİœbè{L€¢?ÈTU ¿*¥%ÌòX(WÈ*‚R(U©Ü”%Ï³2/K•-¤&fm›¯)k3Ü¶8ûU÷î~Cÿà6E–X¨l Í
-,K}Óï1RMÀÂd»äàë>LÕØ½Õ˜4Kş?µz¬g\ƒ?ş‰jX¶|ËGÛrQt
-9(°Îf¡"¤jj°{œj¡ÆeÁfY¤SÓ!„ú¥¹óRºv8F×rAXÛUgS€!Š'3YŠèä-V’Ã*ˆ®9.3G‘Ñ%µhÄl•Æë£Q*Ì	§TÚKõa<ŞJè…“¼õWè—Æté¼1×ÊÓRnç!È‚VğæÉkôšÈÆFpÔ½Ù›ˆ}‚Ø­æRàıDÇİ¥’ëuãmJC~FÂ¼zo1$bˆÆ$
-}Öy<r"‡¼‡X` ı|š„.»[ãå/]Xuul]q?\ô"¯{Õ½kûà¬áßÌæ
-ï÷ó.¥ğØ¾w¡ÒáÑ£€Ùvx…
-¤Évİ²b´Ú—LN¬½[o{°SHà0\tÆ~4“)z£ë“¤r.jJ2–ÛÅf¢–&œï”eƒø½¿7a´£só³9:‘Ñ,éËDãDŸ÷ù=b\±—–ç„qºë{¢­]÷>ë‰“ÄˆåÈöøQÛ¸:H–˜Bèró=¶8×Ìà(ªANäÄÓùû-´™&ÙÃ*.|wğf$L‚_5~Î.+¡î¶±#©¢C:Şßğûó¡›–y
-Ô7æî›fÒd[»l3‘¹¨Ò£"åĞNlĞ/GK™óí:wœ8ú²
-»¤{l$Õ(À:;e5òëáŠÚfel18'¹ÖeÖ6ÍëcˆÖß¾İù(V`$† Õü¶İ­\C$'
-@)3äÓ{9Œ½&ú—âñi
-üécúí„áêÿmeß1ÁY~‹÷7mú8Ö
-=== ./.git/objects/bf/9d3bcd8ab74c9f80939c9ea895d7dd22062655 ===
-x+)JMU06e040031QğñtvõveX±*8VkÓ·”÷µ{/i¶½zQj	 "
-=== ./.git/COMMIT_EDITMSG ===
-Test1
-
-=== ./.git/logs/HEAD ===
-0000000000000000000000000000000000000000 791eca070544d85bdd6c129b539b27995f837723 Rakaikkia <rakaikkia@gmail.com> 1779650863 +0300	commit (initial): TEST
-791eca070544d85bdd6c129b539b27995f837723 0000000000000000000000000000000000000000 Rakaikkia <rakaikkia@gmail.com> 1779650919 +0300	Branch: renamed refs/heads/master to refs/heads/main
-0000000000000000000000000000000000000000 791eca070544d85bdd6c129b539b27995f837723 Rakaikkia <rakaikkia@gmail.com> 1779650919 +0300	Branch: renamed refs/heads/master to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 0000000000000000000000000000000000000000 Rakaikkia <rakaikkia@gmail.com> 1779651378 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 791eca070544d85bdd6c129b539b27995f837723 Rakaikkia <rakaikkia@gmail.com> 1779651378 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 0000000000000000000000000000000000000000 Rakaikkia <rakaikkia@gmail.com> 1779651408 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 791eca070544d85bdd6c129b539b27995f837723 Rakaikkia <rakaikkia@gmail.com> 1779651408 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 0000000000000000000000000000000000000000 Rakaikkia <rakaikkia@gmail.com> 1779651480 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 791eca070544d85bdd6c129b539b27995f837723 Rakaikkia <rakaikkia@gmail.com> 1779651480 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 0000000000000000000000000000000000000000 Rakaikkia <rakaikkia@gmail.com> 1779651533 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 791eca070544d85bdd6c129b539b27995f837723 Rakaikkia <rakaikkia@gmail.com> 1779651533 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 0000000000000000000000000000000000000000 Rakaikkia <rakaikkia@gmail.com> 1779651649 +0300	Branch: renamed refs/heads/main to refs/heads/main
-791eca070544d85bdd6c129b539b27995f837723 791eca070544d85bdd6c129b539b27995f837723 Rakaikkia <rakaikkia@gmail.com> 1779651649 +0300	Branch: renamed refs/heads/main to refs/heads/main
-
-=== ./.git/HEAD ===
-ref: refs/heads/main
-
-=== ./.git/config ===
-[core]
-	repositoryformatversion = 0
-	filemode = true
-	bare = false
-	logallrefupdates = true
-[remote "origin"]
-	url = git@github.com:Rakaikkia/CLICALCtor.git
-	fetch = +refs/heads/*:refs/remotes/origin/*
-
-=== ./.git/FETCH_HEAD ===
-51f4d6c511ea3180c7a640958865c1e1b3cf027a		branch 'main' of github.com:Rakaikkia/CLICALCtor
-
-=== ./.git/ORIG_HEAD ===
-791eca070544d85bdd6c129b539b27995f837723
-
-=== ./.git/index ===
-DIRC      	j"O+bøj"O*ı?Ã   FG  ¤  è  è   ´Î§çPœÒt$† !+@Uô®æW .clangd   j*!|Ej*»Ãú   …  ¤  è  è  ÉóH
-Ÿ–âQ P³k9àN¿ makefile  jÖè3…~jÖè2wñ   `]  ¤  è  è  ÕZ,d‹¢ÿeÓ1Jyx'!‡çB²‡… src/ast/ASTNode.h j6ì$è"ºj6ì$‚jm   [¬  ¤  è  è  äzL&gg¨è7™‚$õÛßÍˆ8q÷ src/lexer/Lexer.cpp       jÔ!9£ljÔ!9=O   F  ¤  è  è  ¥¨-'$¡²Ï¥Ã)^ÚL²ù´†Ä src/lexer/Lexer.h jÎ"œ<IjÎ"§Ô   BQ  ¤  è  è  öyòl<B£nyâ!p,­½ÛÒÓ  src/lexer/Token.h j:Û)|»ßj:Û)–   |  ¤  è  è  FÕêiŠ®G&\YU`Ş"5§èEÔU src/main.cpp      jØZ2a3jØZ1·¨ã   b³  ¤  è  è  %Ş÷ßUÆ•Lsq†ïZ¼æFyÄó src/parser/Parser.cpp     jÔ©ó½wjÔ©&   `¤  ¤  è  è  Úó³É&ÍPq¯Yşµ3\\ÛÌ{Ì÷† src/parser/Parser.h       TREE    9 1
-ÒBuHõşbÍdû†×Á7~•«src 7 3
-9KÜ)çüNôª§ÅwÚ2¾""Last 1 0
-¬èï¾˜²Æğák Va
-wúìclexer 3 0
-ƒï«¥¹vˆ9¡RÀòÉ•X?¢parser 2 0
-RzŒ&È ^S†ä¢Á×‚Ã×i£Œï–x×?~îÌ0‘ÖŞw¼©´Q
