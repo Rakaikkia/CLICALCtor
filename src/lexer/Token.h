@@ -2,16 +2,18 @@
 #include <cstddef>
 
 enum class TokenType {
-            NUMBER, COMMA,
-            PLUS,MINUS,
-            EQUAL, NOTEQUAL,
-            STAR,SLASH,MOD,
-            POW, SQRT, ROOT,
-            LPAREN,RPAREN,
-            LOG2,LOGTEN,LOGE,
-            SIN,TAN,COS,CTAN,
-            CONST_E, CONST_PI,
-            FACTORIAL, SUM,
+            NUMBER,     COMMA,
+            PLUS,       MINUS,
+            EQUAL,      NOTEQUAL,
+            STAR,       SLASH,      MOD,
+            POW,        SQRT,       ROOT,
+            ABS,
+            LPAREN,     RPAREN,
+            LOG2,       LOGTEN,     LOGE,
+            SIN,        TAN,        COS,        CTAN,
+            CONST_EU,   CONST_PI,   CONST_C,    CONST_G,
+            CONST_NA,   CONST_H,    CONST_HD,   CONST_E,    CONST_K,
+            FACTORIAL,  SUM,
             IDENTIFIER,
             END
 };

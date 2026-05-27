@@ -50,8 +50,8 @@ Token Lexer::readIdentifier() {
             if (debugMode) {std::cout << "[Lexer] Identifier: " << name << " at position " << start << std::endl;}
             static const std::unordered_map<std::string, TokenType> opMap = {
                         {"ln", TokenType::LOGTEN},
-                        {"logtwo", TokenType::LOG2},
-                        {"loge", TokenType::LOGE},
+                        {"logTwo", TokenType::LOG2},
+                        {"logE", TokenType::LOGE},
                         {"sin", TokenType::SIN},
                         {"cos", TokenType::COS},
                         {"tan", TokenType::TAN},
@@ -59,10 +59,18 @@ Token Lexer::readIdentifier() {
                         {"cot", TokenType::CTAN},
                         {"ctg", TokenType::CTAN},
                         {"sum", TokenType::SUM},
+                        {"abs", TokenType::ABS},
                         {"sqrt", TokenType::SQRT},
                         {"root", TokenType::ROOT},
                         {"PI", TokenType::CONST_PI},
-                        {"E", TokenType::CONST_E},
+                        {"c", TokenType::CONST_C},
+                        {"G", TokenType::CONST_G},
+                        {"eu", TokenType::CONST_EU},
+                        {"e", TokenType::CONST_E},
+                        {"Na", TokenType::CONST_NA},
+                        {"h", TokenType::CONST_H},
+                        {"k", TokenType::CONST_K},
+                        {"hd", TokenType::CONST_HD},
             };
             auto it = opMap.find(name);
             if (debugMode) {

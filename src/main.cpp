@@ -45,7 +45,8 @@ int main(int argc, char *argv[]) {
                                     "\ta % b...............Rem. of div. of a by b\n" <<
                                     "\ta ^ b...............Raise a to power of b\n" <<
                                     "\ta = b...............Returns true if a is equal to b, false if a is not equal to b\n" <<
-                                    "\ta != b..............Returns true if a is not equal to b, false if a is equal to b (can be written as a # b)" << std::endl <<
+                                    "\ta != b..............Returns true if a is not equal to b, false if a is equal to b (can be written as a # b)\n" <<
+                                    "\ta!..................Factorial" << std::endl <<
                                     "Multi-char functions:\n" <<
                                     "\tsqrt(a).............Square root of a\n" <<
                                     "\troot(a, b)..........b root of a\n" <<
@@ -53,12 +54,21 @@ int main(int argc, char *argv[]) {
                                     "\tcos(a)..............cos(a)\n" <<
                                     "\ttan(a)..............tan(a)\n" <<
                                     "\tctg(a)..............ctg(a) (can bewritten as cot(a))\n" <<
-                                    "\tln(a)...............log_e(a)\n" <<
-                                    "\tlog2(a).............log_2(a)" << std::endl <<
-                                    "\tsum(a, b, c)........sum of all numbers from a to b with step c" << std::endl <<
+                                    "\tln(a)...............log_10(a)\n" <<
+                                    "\tlogE(a).............log_e(a)\n" <<
+                                    "\tlogTwo(a)...........log_2(a)\n" <<
+                                    "\tsum(a, b, c)........sum of all numbers from a to b with step c\n" <<
+                                    "\tabs(a)..............Returns a  if a > 0, else -a" << std::endl <<
                                     "Constants:\n" <<
-                                    "\tPI..................3.141592653589793\n" <<
-                                    "\tE...................2.718281828459045" << std::endl;
+                                    "\tPI..................3,141592653589793\n" <<
+                                    "\teu..................2,718281828459045........(Euler number)\n" <<
+                                    "\tc...................299792458................(Speed of light in vac.)\n" <<
+                                    "\te...................1,602176634e−19..........(Elementary charge)\n" <<
+                                    "\tk...................1,380649e-23.............(Boltzmann constant)\n" <<
+                                    "\tNa..................6,02214076e23............(Avogadro constant)\n" <<
+                                    "\th...................6,62607015e-34...........(Planck constant)\n" <<
+                                    "\thd..................1,054571817e−34..........(Reduced Planck constant)\n" <<
+                                    "\tG...................6,67408e-11..............(Gravitational constant)" << std::endl;
                         return 0;
             }
 
@@ -68,7 +78,7 @@ int main(int argc, char *argv[]) {
                         auto ast = parser.parseExpression();
                         double result = ast->evaluate();
                         if (result == 1 && args.expression.find('=') != std::string::npos)      std::cout << "true" << std::endl;
-                        else if (result == 1 && args.expression.find('#') != std::string::npos)      std::cout << "true" << std::endl;
+                        else if (result == 1 && args.expression.find('#') != std::string::npos) std::cout << "true" << std::endl;
                         else if (result == 0 && args.expression.find('=') != std::string::npos) std::cout << "false" << std::endl;
                         else if (result == 0 && args.expression.find('#') != std::string::npos) std::cout << "false" << std::endl;
                         else                                                                    std::cout << result << std::endl;

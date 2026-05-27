@@ -80,8 +80,28 @@ std::unique_ptr<ASTNode> Parser::parsePrimary(bool radiansMode) {
             auto CTT = currentToken.type;
             if (CTT == TokenType::NUMBER) {
                         node = parseNumber();
-            } else if (CTT == TokenType::CONST_PI || CTT == TokenType::CONST_E) {
-                        std::string name = (currentToken.type == TokenType::CONST_PI) ? "PI" : "E";
+            } else if (CTT == TokenType::CONST_PI ||
+                                    CTT == TokenType::CONST_EU ||
+                                    CTT == TokenType::CONST_G ||
+                                    CTT == TokenType::CONST_E ||
+                                    CTT == TokenType::CONST_NA ||
+                                    CTT == TokenType::CONST_H ||
+                                    CTT == TokenType::CONST_K ||
+                                    CTT == TokenType::CONST_HD ||
+                                    CTT == TokenType::CONST_C) {
+                        std::string name;
+                        switch (CTT) {
+                                    case TokenType::CONST_PI: name = "PI"; break;
+                                    case TokenType::CONST_C: name = "c"; break;
+                                    case TokenType::CONST_E: name = "e"; break;
+                                    case TokenType::CONST_EU: name = "eu"; break;
+                                    case TokenType::CONST_G: name = "G"; break;
+                                    case TokenType::CONST_NA: name = "Na"; break;
+                                    case TokenType::CONST_H: name = "h"; break;
+                                    case TokenType::CONST_K: name = "k"; break;
+                                    case TokenType::CONST_HD: name = "hd"; break;
+                                    default: break;
+                        }
                         advance();
                         node = std::make_unique<ConstantNode>(name);
             } else if (CTT == TokenType::LOGTEN ||
@@ -91,14 +111,15 @@ std::unique_ptr<ASTNode> Parser::parsePrimary(bool radiansMode) {
                                     CTT == TokenType::COS ||
                                     CTT == TokenType::TAN ||
                                     CTT == TokenType::SUM ||
+                                    CTT == TokenType::ABS ||
                                     CTT == TokenType::ROOT ||
                                     CTT == TokenType::SQRT ||
                                     CTT == TokenType::CTAN) {
                         std::string funcName;
                         switch (CTT) {
                                     case TokenType::LOGTEN: funcName = "ln"; break;
-                                    case TokenType::LOG2: funcName = "logtwo"; break;
-                                    case TokenType::LOGE: funcName = "loge"; break;
+                                    case TokenType::LOG2: funcName = "logTwo"; break;
+                                    case TokenType::LOGE: funcName = "logE"; break;
                                     case TokenType::SIN: funcName = "sin"; break;
                                     case TokenType::COS: funcName = "cos"; break;
                                     case TokenType::TAN: funcName = "tan"; break;
@@ -106,6 +127,7 @@ std::unique_ptr<ASTNode> Parser::parsePrimary(bool radiansMode) {
                                     case TokenType::SQRT: funcName = "sqrt"; break;
                                     case TokenType::ROOT: funcName = "root"; break;
                                     case TokenType::SUM: funcName = "sum"; break;
+                                    case TokenType::ABS: funcName = "abs"; break;
                                     default: break;
                         }
                         advance();

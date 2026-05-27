@@ -91,7 +91,14 @@ public:
             ConstantNode(const std::string& n): name(n) {}
             double evaluate() const override {
                         if (name == "PI") return 3.141592653589793;
-                        if (name == "E") return 2.718281828459045;
+                        if (name == "eu") return 2.718281828459045;
+                        if (name == "e") return 1.602176634e-19;
+                        if (name == "c") return 299792458.0;
+                        if (name == "k") return 1.380649e-23;
+                        if (name == "h") return 6.62607015e-34;
+                        if (name == "G") return 6.67408e-11;
+                        if (name == "hd") return 1.054571817e-34;
+                        if (name == "Na") return 6.02214076e23;
                         throw std::runtime_error("Unknown constant");
             }
 };
@@ -155,8 +162,8 @@ public:
                         }
 
                         if (funcName == "ln") return std::log10(arg);
-                        if (funcName == "loge") return std::log(arg);
-                        if (funcName == "logtwo") return std::log2(arg);
+                        if (funcName == "logE") return std::log(arg);
+                        if (funcName == "logTwo") return std::log2(arg);
                         if (funcName == "sin") return std::sin(arg);
                         if (funcName == "cos") return std::cos(arg);
                         if (funcName == "tan") return std::tan(arg);
@@ -169,6 +176,7 @@ public:
                                     return std::sqrt(arg);
                         }
                         if (funcName == "root") return std::sqrt(arg);
+                        if (funcName == "abs") return (arg > 0) ? arg : -arg;
 
                         throw std::runtime_error("Cant find function " + funcName);
             }
